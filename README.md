@@ -1,5 +1,5 @@
 # gopcxmlda
-An Implementation of the OPC-XML-DA Protocol in Go. See [https://www.opcconnect.com/xml.php#xmlspec](https://www.opcconnect.com/xml.php#xmlspec) or [here in the repository](https://github.com/dernate/gopcxmlda/blob/main/docs/OPCDataAccessXMLSpecification.pdf)
+An Implementation of the OPC-XML-DA Protocol in Go. See [https://www.opcconnect.com/xml.php#xmlspec](https://www.opcconnect.com/xml.php#xmlspec) or [here in the repository](https://github.com/dernate/gopcxmlda/blob/master/docs/OPCDataAccessXMLSpecification.pdf)
 
 ## Status
 This is a work in progress. The goal is to implement the OPC-XML-DA protocol for client side interaction with Go. The Basic functionalities are implemented, except for the GetProperties method.
