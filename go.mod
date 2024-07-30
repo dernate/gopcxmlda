@@ -1,4 +1,4 @@
-module github.com/gopcxmlda
+module github.com/dernate/gopcxmlda
 
 go 1.22
 
