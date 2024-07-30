@@ -80,7 +80,7 @@ func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (T_Get
 	payload := buildGetStatusPayload(s, namespace, ClientRequestHandle)
 	logDebug("send payload", "GetStatus", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "GetStatus")
 		return T_GetStatus{}, err
@@ -148,7 +148,7 @@ func (s *Server) Read(items []T_Item, ClientRequestHandle *string, ClientItemHan
 	payload := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
 	logDebug("send payload", "Read", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "Read")
 		return T_Read{}, err
@@ -203,7 +203,7 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 	payload := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
 	logDebug("send payload", "Browse", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "Browse")
 		return T_Browse{}, err
@@ -277,7 +277,7 @@ func (s *Server) Write(items []T_Item, ClientRequestHandle *string, ClientItemHa
 	payload := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
 	logDebug("send payload", "Write", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "Write")
 		return T_Write{}, err
@@ -345,7 +345,7 @@ func (s *Server) Subscribe(items []T_Item, ClientRequestHandle *string, ClientIt
 		returnValuesOnReply, subscriptionPingRate, enableBuffering, options)
 	logDebug("send payload", "Subscribe", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "Subscribe")
 		return T_Subscribe{}, err
@@ -395,7 +395,7 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 	payload := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
 	logDebug("send payload", "SubscriptionCancel", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "SubscriptionCancel")
 		return false, err
@@ -455,7 +455,7 @@ func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionP
 	}
 	logDebug("send payload", "SubscriptionPolledRefresh", payload)
 
-	response, err := send(s, payload, s.timeout)
+	response, err := send(s, payload, s.Timeout)
 	if err != nil {
 		logError(err.Error(), "SubscriptionPolledRefresh")
 		return T_SubscriptionPolledRefresh{}, err

@@ -9,7 +9,7 @@ type Server struct {
 	Addr     string        // Address of the server
 	Port     string        // Port number of the server
 	LocaleID string        // Locale ID of the server
-	timeout  time.Duration // Timeout duration for the connection
+	Timeout  time.Duration // Timeout duration for the connection
 }
 
 // T_GetStatus represents the structure for getting the status of the server.
