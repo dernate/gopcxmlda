@@ -1,6 +1,7 @@
 package gopcxmlda
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -47,6 +48,7 @@ func TestRead(t *testing.T) {
 	options := map[string]interface{}{
 		"ReturnItemTime": true,
 		"returnItemPath": true,
+		"returnItemName": true,
 	}
 	var ClientRequestHandle string
 	var ClientItemHandles []string
@@ -67,10 +69,14 @@ func TestBrowse(t *testing.T) {
 	OPCPort := os.Getenv("PORT")
 	s := Server{OPCIP, OPCPort, "en-US", 10}
 	var ClientRequestHandle string
-	_, err = s.Browse("Loc/Wec", &ClientRequestHandle, "", T_BrowseOptions{})
+	r, err := s.Browse("Loc/Wec/Plant1", &ClientRequestHandle, "", T_BrowseOptions{
+		ReturnAllProperties:  true,
+		ReturnPropertyValues: true,
+	})
 	if err != nil {
 		t.Fatal(err)
 	} else {
+		fmt.Println(r)
 		t.Log("Browse successful")
 	}
 }

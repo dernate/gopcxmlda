@@ -95,15 +95,15 @@ type T_Quality struct {
 // T_BrowseOptions represents the structure for the browse options.
 type T_BrowseOptions struct {
 	ItemName             string
-	clientRequestHandle  string
-	continuationPoint    string
-	maxElementsReturned  int
-	browseFilter         string
-	elementNameFilter    string
-	vendorFilter         string
-	returnAllProperties  bool
-	returnPropertyValues bool
-	returnErrorText      bool
+	ClientRequestHandle  string
+	ContinuationPoint    string
+	MaxElementsReturned  int
+	BrowseFilter         string
+	ElementNameFilter    string
+	VendorFilter         string
+	ReturnAllProperties  bool
+	ReturnPropertyValues bool
+	ReturnErrorText      bool
 }
 
 // T_Browse represents the structure for browsing items on the server.
