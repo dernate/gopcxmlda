@@ -159,14 +159,14 @@ func buildBrowsePayload(s *Server, ClientRequestHandle *string,
 
 	payload.WriteString(fmt.Sprintf("ClientRequestHandle=\"%s\" ", *ClientRequestHandle))
 	payload.WriteString(fmt.Sprintf("ItemName=\"%s\" ", options.ItemName))
-	payload.WriteString(fmt.Sprintf("ContinuationPoint=\"%s\" ", options.continuationPoint))
-	payload.WriteString(fmt.Sprintf("MaxElementsReturned=\"%d\" ", options.maxElementsReturned))
-	payload.WriteString(fmt.Sprintf("BrowseFilter=\"%s\" ", options.browseFilter))
-	payload.WriteString(fmt.Sprintf("ElementNameFilter=\"%s\" ", options.elementNameFilter))
-	payload.WriteString(fmt.Sprintf("VendorFilter=\"%s\" ", options.vendorFilter))
-	payload.WriteString(fmt.Sprintf("ReturnAllProperties=\"%s\" ", strconv.FormatBool(options.returnAllProperties)))
-	payload.WriteString(fmt.Sprintf("ReturnPropertyValues=\"%s\" ", strconv.FormatBool(options.returnPropertyValues)))
-	payload.WriteString(fmt.Sprintf("ReturnErrorText=\"%s\"", strconv.FormatBool(options.returnErrorText)))
+	payload.WriteString(fmt.Sprintf("ContinuationPoint=\"%s\" ", options.ContinuationPoint))
+	payload.WriteString(fmt.Sprintf("MaxElementsReturned=\"%d\" ", options.MaxElementsReturned))
+	payload.WriteString(fmt.Sprintf("BrowseFilter=\"%s\" ", options.BrowseFilter))
+	payload.WriteString(fmt.Sprintf("ElementNameFilter=\"%s\" ", options.ElementNameFilter))
+	payload.WriteString(fmt.Sprintf("VendorFilter=\"%s\" ", options.VendorFilter))
+	payload.WriteString(fmt.Sprintf("ReturnAllProperties=\"%s\" ", strconv.FormatBool(options.ReturnAllProperties)))
+	payload.WriteString(fmt.Sprintf("ReturnPropertyValues=\"%s\" ", strconv.FormatBool(options.ReturnPropertyValues)))
+	payload.WriteString(fmt.Sprintf("ReturnErrorText=\"%s\"", strconv.FormatBool(options.ReturnErrorText)))
 
 	// Body end
 	payload.WriteString(fmt.Sprintf("></%s:Browse>", namespace))
