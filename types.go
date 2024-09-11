@@ -205,6 +205,7 @@ type T_ItemValue_S struct {
 	ClientItemHandle string    `xml:"ClientItemHandle,attr"`
 	ItemName         string    `xml:"ItemName,attr"`
 	ItemPath         string    `xml:"ItemPath,attr"`
+	Timestamp        time.Time `xml:"Timestamp,attr"`
 	Value            T_Value   `xml:"Value"`
 	Quality          T_Quality `xml:"Quality"`
 }
