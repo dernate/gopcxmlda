@@ -257,7 +257,7 @@ type T_RItemList_SPR struct {
 }
 
 type T_Item_SPR struct {
-	Timestamp        string    `xml:"Timestamp,attr"`
+	Timestamp        time.Time `xml:"Timestamp,attr"`
 	ClientItemHandle string    `xml:"ClientItemHandle,attr"`
 	ItemName         string    `xml:"ItemName,attr"`
 	ItemPath         string    `xml:"ItemPath,attr"`
