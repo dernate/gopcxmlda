@@ -5,11 +5,11 @@ An Implementation of the OPC-XML-DA Protocol in Go. See [https://www.opcconnect.
 This is a work in progress. The goal is to implement the OPC-XML-DA protocol for client side interaction with Go. The Basic functionalities are implemented, except for the GetProperties method.
 
 Currently supported:
-- [ ] GetStatus
-- [ ] Browse
-- [ ] Read
-- [ ] Write
-- [ ] Subscribe
+- [x] GetStatus
+- [x] Browse
+- [x] Read
+- [x] Write
+- [x] Subscribe
 
 Not yet supported:
 - [ ] GetProperties
@@ -26,9 +26,9 @@ import (
 )
 
 func main() {
+	_url, _ := url.Parse("http://your.opc-xml-da.server"),
 	s := Server{
-		"http://your.opc-xml-da.server", 
-		8080, 
+		_url,
 		"en-US", 
 		10,
 	}

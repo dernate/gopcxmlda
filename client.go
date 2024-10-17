@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/xml"
+	"errors"
 	"fmt"
 )
 
@@ -46,52 +47,76 @@ func GenerateClientHandles(count int) (string, []string, error) {
 // GetStatus gives back the status of an opc-xml-da server.
 // It takes the ClientRequestHandle and namespace as parameters.
 // If the namespace is empty, it defaults to "ns0".
-// It returns the status of the client request as a T_GetStatus struct and an error, if any.
+// It returns the status of the client request as a TGetStatus struct and an error, if any.
 //
 // Parameters:
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - namespace (string): The namespace to use for the request.
 //
 // Returns:
-// - (T_GetStatus): The status of the OPC-XML-DA Server as a T_GetStatus struct.
+// - (TGetStatus): The status of the OPC-XML-DA Server as a TGetStatus struct.
 // - (error): An error if any issues occur during the request.
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//		response, ClientRequestHandle, err := s.GetStatus("", "")
-//		if err != nil {
-//			log.Fatal(err)
-//		} else {
-//			// do something with the response-object T_GetStatus
-//		}
-func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (T_GetStatus, error) {
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//			response, ClientRequestHandle, err := s.GetStatus("", "")
+//			if err != nil {
+//				log.Fatal(err)
+//			} else {
+//				// do something with the response-object TGetStatus
+//			}
+func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (TGetStatus, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" {
 		clientRequestHandle, _, err := GenerateClientHandles(0)
 		if err != nil {
-			logError(err.Error(), "GetStatus")
-			return T_GetStatus{}, err
+			logError(err, "GetStatus")
+			return TGetStatus{}, err
 		}
 		*ClientRequestHandle = clientRequestHandle
 	}
 	payload := buildGetStatusPayload(s, namespace, ClientRequestHandle)
-	logDebug("send payload", "GetStatus", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "GetStatus")
-		return T_GetStatus{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var Status T_GetStatus
-	if err := xml.Unmarshal(response, &Status); err != nil {
-		logError(err.Error(), "GetStatus")
+	var Status TGetStatus
+	if err = xml.Unmarshal(response, &Status); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "GetStatus")
+		}
+		return TGetStatus{}, errReturn
 	}
 
-	return Status, nil
+	if Status.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				Status.Fault.FaultCode, Status.Fault.FaultString, Status.Fault.Detail,
+			)),
+		)
+	}
+	if Status.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				Status.Response.Errors.Id, Status.Response.Errors.Text, Status.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "GetStatus")
+	}
+	return Status, errReturn
 }
 
 // Read reads items from the specified namespace using the given options.
@@ -99,44 +124,45 @@ func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (T_Get
 // It returns the read result and an error if any.
 //
 // Parameters:
-// - items ([]T_Item): The items to read from the server.
+// - items ([]TItem): The items to read from the server.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - ClientItemHandles (*[]string): The client item handles to use for the request.
 // - namespace (string): The namespace to use for the request.
 // - options (map[string]string): The options to use for the request.
 //
 // Returns:
-// - (T_Read): The read result as a T_Read struct.
+// - (TRead): The read result as a TRead struct.
 // - (error): An error if any issues occur during the request.
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//		items := []T_Item{
-//			{
-//				ItemName: "My/Item",
-//			},
-//		}
-//		options := map[string]string{
-//			"ReturnItemTime": "true",
-//			"returnItemPath": "true",
-//		}
-//		response, err := s.Read(items, "", options)
-//		if err != nil {
-//			log.Fatal(err)
-//		} else {
-//			// do something with the response-object T_Read
-//		}
-func (s *Server) Read(items []T_Item, ClientRequestHandle *string, ClientItemHandles *[]string,
-	namespace string, options map[string]interface{}) (T_Read, error) {
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//			items := []TItem{
+//				{
+//					ItemName: "My/Item",
+//				},
+//			}
+//			options := map[string]string{
+//				"ReturnItemTime": "true",
+//				"returnItemPath": "true",
+//			}
+//			response, err := s.Read(items, "", options)
+//			if err != nil {
+//				log.Fatal(err)
+//			} else {
+//				// do something with the response-object TRead
+//			}
+func (s *Server) Read(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
+	namespace string, options map[string]interface{}) (TRead, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
 		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
 		if err != nil {
-			logError(err.Error(), "Read")
-			return T_Read{}, err
+			logError(err, "Read")
+			return TRead{}, err
 		}
 		if *ClientRequestHandle == "" {
 			*ClientRequestHandle = clientRequestHandle
@@ -146,21 +172,44 @@ func (s *Server) Read(items []T_Item, ClientRequestHandle *string, ClientItemHan
 		}
 	}
 	payload := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
-	logDebug("send payload", "Read", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "Read")
-		return T_Read{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var R T_Read
-	if err := xml.Unmarshal(response, &R); err != nil {
-		logError(err.Error(), "Read")
-		return T_Read{}, err
+	var R TRead
+	if err = xml.Unmarshal(response, &R); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "Read")
+		}
+		return TRead{}, errReturn
 	}
 
-	return R, nil
+	if R.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				R.Fault.FaultCode, R.Fault.FaultString, R.Fault.Detail,
+			)),
+		)
+	}
+	if R.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				R.Response.Errors.Id, R.Response.Errors.Text, R.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "Read")
+	}
+
+	return R, errReturn
 }
 
 // Browse sends a browse request to the server and returns the browse response.
@@ -172,50 +221,74 @@ func (s *Server) Read(items []T_Item, ClientRequestHandle *string, ClientItemHan
 // - itemPath (string): The path of the item to browse.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - namespace (string): The namespace to use for the request.
-// - options (T_BrowseOptions): The options to use for the request.
+// - options (TBrowseOptions): The options to use for the request.
 //
 // Returns:
-// - (T_Browse): The browse response as a T_Browse struct.
+// - (TBrowse): The browse response as a TBrowse struct.
 // - (error): An error if any issues occur during the request.
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//		response, err := s.Browse("My/Item", "", T_BrowseOptions{})
-//		if err != nil {
-//			log.Fatal(err)
-//		} else {
-//			// do something with the response-object T_Browse
-//		}
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//			response, err := s.Browse("My/Item", "", TBrowseOptions{})
+//			if err != nil {
+//				log.Fatal(err)
+//			} else {
+//				// do something with the response-object TBrowse
+//			}
 func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
-	namespace string, options T_BrowseOptions) (T_Browse, error) {
+	namespace string, options TBrowseOptions) (TBrowse, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" {
 		clientRequestHandle, _, err := GenerateClientHandles(0)
 		if err != nil {
-			logError(err.Error(), "Browse")
-			return T_Browse{}, err
+			logError(err, "Browse")
+			return TBrowse{}, err
 		}
 		*ClientRequestHandle = clientRequestHandle
 	}
 	payload := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
-	logDebug("send payload", "Browse", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "Browse")
-		return T_Browse{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var B T_Browse
-	if err := xml.Unmarshal(response, &B); err != nil {
-		logError(err.Error(), "Browse")
-		return T_Browse{}, err
+	var B TBrowse
+	if err = xml.Unmarshal(response, &B); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "Browse")
+		}
+		return TBrowse{}, errReturn
 	}
 
-	return B, nil
+	if B.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				B.Fault.FaultCode, B.Fault.FaultString, B.Fault.Detail,
+			)),
+		)
+	}
+	if B.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				B.Response.Errors.Id, B.Response.Errors.Text, B.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "Browse")
+	}
+
+	return B, errReturn
 }
 
 // Write items to the specified namespace using the given options.
@@ -223,7 +296,7 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 // It returns the write result and an error if any.
 //
 // Parameters:
-// - items ([]T_Item): The items to write to the server.
+// - items ([]TItem): The items to write to the server.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - ClientItemHandles (*[]string): The client item handles to use for the request.
 // - namespace (string): The namespace to use for the request.
@@ -235,37 +308,38 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//	 items := []T_Item{
-//		{
-//			ItemName: "My/Item",
-//	 		Value: T_Value{
-//	 			Value: []int{0, 0, 0},
-//	 		},
-//	 	},
-//		{
-//			ItemName: "My/Item2",
-//	 		Value: T_Value{
-//	 			Value: 1.234,
-//	 		},
-//	 	},
-//	 }
-//	 response, err := s.Write(items, "", map[string]string{})
-//	 if err != nil {
-//		t.Fatal(err)
-//	 } else {
-//	 	t.Log(response)
-//	 }
-func (s *Server) Write(items []T_Item, ClientRequestHandle *string, ClientItemHandles *[]string,
-	namespace string, options map[string]interface{}) (T_Write, error) {
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//		 items := []TItem{
+//			{
+//				ItemName: "My/Item",
+//		 		Value: T_Value{
+//		 			Value: []int{0, 0, 0},
+//		 		},
+//		 	},
+//			{
+//				ItemName: "My/Item2",
+//		 		Value: T_Value{
+//		 			Value: 1.234,
+//		 		},
+//		 	},
+//		 }
+//		 response, err := s.Write(items, "", map[string]string{})
+//		 if err != nil {
+//			t.Fatal(err)
+//		 } else {
+//		 	t.Log(response)
+//		 }
+func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
+	namespace string, options map[string]interface{}) (TWrite, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
 		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
 		if err != nil {
-			logError(err.Error(), "Read")
-			return T_Write{}, err
+			logError(err, "Write")
+			return TWrite{}, err
 		}
 		if *ClientRequestHandle == "" {
 			*ClientRequestHandle = clientRequestHandle
@@ -275,27 +349,50 @@ func (s *Server) Write(items []T_Item, ClientRequestHandle *string, ClientItemHa
 		}
 	}
 	payload := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
-	logDebug("send payload", "Write", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "Write")
-		return T_Write{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var W T_Write
-	if err := xml.Unmarshal(response, &W); err != nil {
-		logError(err.Error(), "Write")
-		return T_Write{}, err
+	var W TWrite
+	if err = xml.Unmarshal(response, &W); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "Write")
+		}
+		return TWrite{}, errReturn
 	}
 
-	return W, nil
+	if W.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				W.Fault.FaultCode, W.Fault.FaultString, W.Fault.Detail,
+			)),
+		)
+	}
+	if W.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				W.Response.Errors.Id, W.Response.Errors.Text, W.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "Write")
+	}
+
+	return W, errReturn
 }
 
 // Subscribe subscribes a client to a set of items, enabling the client to receive updates about the items' states.
 //
 // Parameters:
-// - items: A slice of T_Item representing the items to be subscribed to.
+// - items: A slice of TItem representing the items to be subscribed to.
 // - ClientRequestHandle: A pointer to a string representing the client request handle. If not provided, it will be generated.
 // - ClientItemHandles: A pointer to a slice of strings representing the client item handles. If not provided, they will be generated.
 // - namespace: A string representing the namespace. Defaults to "ns0" if not provided.
@@ -310,29 +407,30 @@ func (s *Server) Write(items []T_Item, ClientRequestHandle *string, ClientItemHa
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//	 items := []T_Item{
-//		 {
-//			 ItemName: "My/Item",
-//		 },
-//	 }
-//	 response, err := s.Subscribe(items, "", "", "", false, 0, false, map[string]interface{})
-//	 if err != nil {
-//		 log.Fatal(err)
-//	 } else {
-//		 // do something with the response-object T_Subscribe
-//	 }
-func (s *Server) Subscribe(items []T_Item, ClientRequestHandle *string, ClientItemHandles *[]string,
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//		 items := []TItem{
+//			 {
+//				 ItemName: "My/Item",
+//			 },
+//		 }
+//		 response, err := s.Subscribe(items, "", "", "", false, 0, false, map[string]interface{})
+//		 if err != nil {
+//			 log.Fatal(err)
+//		 } else {
+//			 // do something with the response-object T_Subscribe
+//		 }
+func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, returnValuesOnReply bool, subscriptionPingRate uint, enableBuffering bool,
-	options map[string]interface{}) (T_Subscribe, error) {
+	requestedSamplingRate uint, options map[string]interface{}) (TSubscribe, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
 		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
 		if err != nil {
-			logError(err.Error(), "Read")
-			return T_Subscribe{}, err
+			logError(err, "Subscribe")
+			return TSubscribe{}, err
 		}
 		if *ClientRequestHandle == "" {
 			*ClientRequestHandle = clientRequestHandle
@@ -342,22 +440,45 @@ func (s *Server) Subscribe(items []T_Item, ClientRequestHandle *string, ClientIt
 		}
 	}
 	payload := buildSubscribePayload(namespace, items, ClientRequestHandle, ClientItemHandles,
-		returnValuesOnReply, subscriptionPingRate, enableBuffering, options)
-	logDebug("send payload", "Subscribe", payload)
+		returnValuesOnReply, subscriptionPingRate, enableBuffering, requestedSamplingRate, options)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "Subscribe")
-		return T_Subscribe{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var S T_Subscribe
-	if err := xml.Unmarshal(response, &S); err != nil {
-		logError(err.Error(), "Subscribe")
-		return T_Subscribe{}, err
+	var Sub TSubscribe
+	if err = xml.Unmarshal(response, &Sub); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "Subscribe")
+		}
+		return TSubscribe{}, errReturn
 	}
 
-	return S, nil
+	if Sub.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				Sub.Fault.FaultCode, Sub.Fault.FaultString, Sub.Fault.Detail,
+			)),
+		)
+	}
+	if Sub.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				Sub.Response.Errors.Id, Sub.Response.Errors.Text, Sub.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "Subscribe")
+	}
+
+	return Sub, errReturn
 }
 
 // SubscriptionCancel cancels a subscription on the server.
@@ -373,13 +494,14 @@ func (s *Server) Subscribe(items []T_Item, ClientRequestHandle *string, ClientIt
 //
 // Example:
 //
-//	success, err := s.SubscriptionCancel("subHandle123", "ns1", &clientHandle)
-//	if err != nil {
-//	    // Handle error
-//	}
-//	if success {
-//	    // Handle successful cancellation
-//	}
+//	 _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		success, err := s.SubscriptionCancel("subHandle123", "ns1", &clientHandle)
+//		if err != nil {
+//		    // Handle error
+//		}
+//		if success {
+//		    // Handle successful cancellation
+//		}
 func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, ClientRequestHandle *string) (bool, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -387,24 +509,47 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 	if *ClientRequestHandle == "" {
 		clientRequestHandle, _, err := GenerateClientHandles(0)
 		if err != nil {
-			logError(err.Error(), "Browse")
+			logError(err, "SubscriptionCancel")
 			return false, err
 		}
 		*ClientRequestHandle = clientRequestHandle
 	}
 	payload := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
-	logDebug("send payload", "SubscriptionCancel", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "SubscriptionCancel")
-		return false, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var SC T_SubscriptionCancel
-	if err := xml.Unmarshal(response, &SC); err != nil {
-		logError(err.Error(), "SubscriptionCancel")
-		return false, err
+	var SC TSubscriptionCancel
+	if err = xml.Unmarshal(response, &SC); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "SubscriptionCancel")
+		}
+		return false, errReturn
+	}
+
+	if SC.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				SC.Fault.FaultCode, SC.Fault.FaultString, SC.Fault.Detail,
+			)),
+		)
+	}
+	if SC.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				SC.Response.Errors.Id, SC.Response.Errors.Text, SC.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "SubscriptionCancel")
 	}
 
 	return true, nil
@@ -427,45 +572,69 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 //
 // Example:
 //
-//	 s := Server{"opc-addr-or-IP.local", 12345, "en-US", 10}
-//	 response, err := s.SubscriptionPolledRefresh("subHandle123", 1000, "ns1", &clientHandle, map[string]interface{}{}, T_ServerTime{})
-//	 if err != nil {
-//		 log.Fatal(err)
-//	 } else {
-//		 // do something with the response-object T_SubscriptionPolledRefresh
-//	 }
+//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//		 s := Server{_url, "en-US", 10}
+//		 response, err := s.SubscriptionPolledRefresh("subHandle123", 1000, "ns1", &clientHandle, map[string]interface{}{}, T_ServerTime{})
+//		 if err != nil {
+//			 log.Fatal(err)
+//		 } else {
+//			 // do something with the response-object T_SubscriptionPolledRefresh
+//		 }
 func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionPingRate uint, namespace string,
-	ClientRequestHandle *string, options map[string]interface{}, ServerTime T_ServerTime) (T_SubscriptionPolledRefresh, error) {
+	ClientRequestHandle *string, options map[string]interface{}, ServerTime TServerTime) (TSubscriptionPolledRefresh, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
 	if *ClientRequestHandle == "" {
 		clientRequestHandle, _, err := GenerateClientHandles(0)
 		if err != nil {
-			logError(err.Error(), "Browse")
-			return T_SubscriptionPolledRefresh{}, err
+			logError(err, "SubscriptionPolledRefresh")
+			return TSubscriptionPolledRefresh{}, err
 		}
 		*ClientRequestHandle = clientRequestHandle
 	}
 	payload, err := buildSubscriptionPolledRefreshPayload(serverSubHandle, namespace, ClientRequestHandle,
 		SubscriptionPingRate, options, ServerTime)
 	if err != nil {
-		logError(err.Error(), "SubscriptionPolledRefresh")
-		return T_SubscriptionPolledRefresh{}, err
+		logError(err, "SubscriptionPolledRefresh")
+		return TSubscriptionPolledRefresh{}, err
 	}
-	logDebug("send payload", "SubscriptionPolledRefresh", payload)
 
-	response, err := send(s, payload, s.Timeout)
+	var errReturn error
+	response, err := send(s, payload)
 	if err != nil {
-		logError(err.Error(), "SubscriptionPolledRefresh")
-		return T_SubscriptionPolledRefresh{}, err
+		errReturn = errors.Join(errReturn, err)
 	}
 
-	var SPR T_SubscriptionPolledRefresh
-	if err := xml.Unmarshal([]byte(response), &SPR); err != nil {
-		logError(err.Error(), "SubscriptionPolledRefresh")
-		return T_SubscriptionPolledRefresh{}, err
+	var SPR TSubscriptionPolledRefresh
+	if err = xml.Unmarshal(response, &SPR); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "SubscriptionPolledRefresh")
+		}
+		return TSubscriptionPolledRefresh{}, errReturn
 	}
 
-	return SPR, nil
+	if SPR.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				SPR.Fault.FaultCode, SPR.Fault.FaultString, SPR.Fault.Detail,
+			)),
+		)
+	}
+	if SPR.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				SPR.Response.Errors.Id, SPR.Response.Errors.Text, SPR.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "SubscriptionPolledRefresh")
+	}
+
+	return SPR, errReturn
 }

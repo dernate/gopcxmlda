@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// UnmarshalXML Helper function to unmarshal XML into a T_Value struct.
+// UnmarshalXML Helper function to unmarshal XML into a TValue struct.
 // The tipping point for this function is the switch statement that handles
 // either single or array values.
 // Array values are handled by the decodeArrayOf function, whereas single values
 // are handled by the switch statement that handles the different types.
-func (v *T_Value) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	split := strings.Split(start.Attr[0].Value, ":")
 	v.Namespace = split[0]
 	v.Type = split[1]
@@ -89,8 +89,8 @@ func (v *T_Value) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	return nil
 }
 
-// Helper function to decode array values into a T_Value struct.
-func (v *T_Value) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
+// Helper function to decode array values into a TValue struct.
+func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 	var tempSlice []interface{}
 	for {
 		var t xml.Token
@@ -226,13 +226,13 @@ func valueIsArrayOrSlice(value interface{}) bool {
 	}
 }
 
-func setOpcXmlDaTypes(items []T_Item) []T_Item {
+func setOpcXmlDaTypes(items []TItem) []TItem {
 	for i := range items {
 		if items[i].Value.Type == "" {
 			// Only set the type if it is not already set
 			item, err := getOpcXmlDaType(items[i].Value.Value)
 			if err != nil {
-				logError(err.Error(), "setOpcXmlDaTypes")
+				logError(err, "setOpcXmlDaTypes")
 			} else {
 				items[i].Value.Type = item
 			}

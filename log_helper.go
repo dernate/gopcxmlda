@@ -1,35 +1,9 @@
 package gopcxmlda
 
-import (
-	log "github.com/sirupsen/logrus"
-)
+import "log"
 
-func LogLevel(level uint32) {
-	log.SetLevel(log.Level(level))
-}
-
-func logDebug(msg string, f string, content string) {
-	log.WithFields(log.Fields{
-		"function": f,
-		"content":  content,
-	}).Debug(msg)
-}
-
-/*
-// not used
-	func logInfo(msg string) {
-		log.Info(msg)
+func logError(err error, function string) {
+	if err != nil {
+		log.Printf("gopcxmlda error at %s: %s", function, err)
 	}
-
-	func logWarn(msg string, f string) {
-		log.WithFields(log.Fields{
-			"function": f,
-		}).Warn(msg)
-	}
-*/
-
-func logError(msg string, f string) {
-	log.WithFields(log.Fields{
-		"function": f,
-	}).Error(msg)
 }
