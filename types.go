@@ -189,6 +189,34 @@ type TItemListSPR struct {
 	Items              []TItem `xml:"Items"`
 }
 
+type TGetProperties struct {
+	TBodyBase
+	Response TGetPropertiesResponse `xml:"Body>GetPropertiesResponse"`
+}
+
+type TGetPropertiesResponse struct {
+	Result       TBaseResult     `xml:"GetPropertiesResult"`
+	PropertyList []TPropertyList `xml:"PropertyLists"`
+	Errors       OpcErrors       `xml:"Errors"`
+}
+
+type TPropertyList struct {
+	ItemName   string        `xml:"ItemName,attr"`
+	ItemPath   string        `xml:"ItemPath,attr"`
+	Type       string        `xml:"type,attr"`
+	ResultId   string        `xml:"ResultID,attr"`
+	Properties []TProperties `xml:"Properties"`
+}
+
+type TProperties struct {
+	Description string `xml:"Description,attr"`
+	ItemName    string `xml:"ItemName,attr"`
+	ItemPath    string `xml:"ItemPath,attr"`
+	Name        string `xml:"Name,attr"`
+	Type        string `xml:"type,attr"`
+	Value       TValue `xml:"Value"`
+}
+
 type OpcErrors struct {
 	Id   string   `xml:"ID,attr"`
 	Type string   `xml:"type,attr"`
@@ -198,4 +226,11 @@ type OpcErrors struct {
 type TServerTime struct {
 	ServerTime    time.Time
 	UseClientTime bool
+}
+
+type TPropertyOptions struct {
+	ReturnAllProperties  bool
+	PropertyNames        []string
+	ReturnPropertyValues bool
+	ReturnErrorText      bool
 }

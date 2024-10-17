@@ -638,3 +638,59 @@ func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionP
 
 	return SPR, errReturn
 }
+
+func (s *Server) GetProperties(items []TItem, PropertyOptions TPropertyOptions,
+	ClientRequestHandle *string, namespace string) (TGetProperties, error) {
+	if namespace == "" {
+		namespace = "ns0"
+	}
+	if *ClientRequestHandle == "" {
+		clientRequestHandle, _, err := GenerateClientHandles(len(items))
+		if err != nil {
+			logError(err, "GetProperties")
+			return TGetProperties{}, err
+		}
+		if *ClientRequestHandle == "" {
+			*ClientRequestHandle = clientRequestHandle
+		}
+	}
+	payload := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
+
+	var errReturn error
+	response, err := send(s, payload)
+	if err != nil {
+		errReturn = errors.Join(errReturn, err)
+	}
+
+	var P TGetProperties
+	if err = xml.Unmarshal(response, &P); err != nil {
+		errReturn = errors.Join(errReturn, err)
+		if errReturn != nil {
+			logError(errReturn, "GetProperties")
+		}
+		return TGetProperties{}, errReturn
+	}
+
+	if P.Fault.FaultCode != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Faultcode: %s, Faultstring: %s, Detail: %s",
+				P.Fault.FaultCode, P.Fault.FaultString, P.Fault.Detail,
+			)),
+		)
+	}
+	if P.Response.Errors.Id != "" {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"Id: %s, Text: %s, Type: %s",
+				P.Response.Errors.Id, P.Response.Errors.Text, P.Response.Errors.Type,
+			)),
+		)
+	}
+
+	if errReturn != nil {
+		logError(errReturn, "GetProperties")
+	}
+
+	return P, errReturn
+}

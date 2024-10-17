@@ -18,7 +18,7 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	v.Namespace = split[0]
 	v.Type = split[1]
 	switch v.Type {
-	case "string", "base64Binary":
+	case "string", "base64Binary", "QName":
 		var data string
 		if err := d.DecodeElement(&data, &start); err != nil {
 			return err
@@ -78,6 +78,12 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 			return err
 		}
 		v.Value = data
+	case "OPCQuality": // used at GetProperties
+		var data TQuality
+		if err := d.DecodeElement(&data, &start); err != nil {
+			return err
+		}
+		v.Value = data
 	default:
 		switch v.Type {
 		case "ArrayOfString", "ArrayOfBoolean", "ArrayOfDateTime", "ArrayOfLong", "ArrayOfInt", "ArrayOfUnsignedLong", "ArrayOfUnsignedInt", "ArrayOfShort", "ArrayOfByte", "ArrayOfUnsignedShort", "ArrayOfUnsignedByte", "ArrayOfFloat", "ArrayOfDouble", "ArrayOfDecimal":
@@ -104,7 +110,7 @@ func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 			var value interface{}
 
 			switch v.Type {
-			case "ArrayOfString":
+			case "ArrayOfString", "ArrayOfQName":
 				var s string
 				err := d.DecodeElement(&s, &se)
 				if err != nil {

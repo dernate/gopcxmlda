@@ -2,17 +2,16 @@
 An Implementation of the OPC-XML-DA Protocol in Go. See [https://www.opcconnect.com/xml.php#xmlspec](https://www.opcconnect.com/xml.php#xmlspec) or [here in the repository](https://github.com/dernate/gopcxmlda/blob/master/docs/OPCDataAccessXMLSpecification.pdf)
 
 ## Status
-This is a work in progress. The goal is to implement the OPC-XML-DA protocol for client side interaction with Go. The Basic functionalities are implemented, except for the GetProperties method.
+The basic functions of the OPC-XML-DA protocol are implemented in gopcxmlda. The project is therefore in maintenance or "bug-fix" status. No new functions are planned.
 
-Currently supported:
+Supported OPC-XML-DA Methods:
 - [x] GetStatus
 - [x] Browse
 - [x] Read
 - [x] Write
 - [x] Subscribe
+- [x] GetProperties
 
-Not yet supported:
-- [ ] GetProperties
 
 ## Usage
 
@@ -43,14 +42,14 @@ status, err := s.GetStatus(ClientRequestHandle, "ns1")
 
 ### Browse
 ```go
-options := T_BrowseOptions{}
+options := TBrowseOptions{}
 var ClientRequestHandle string
-browse_response, err := s.Browse("my/OPC/path", ClientRequestHandle, "ns1", options)
+browseResponse, err := s.Browse("my/OPC/path", ClientRequestHandle, "ns1", options)
 ```
 
 ### Read
 ```go
-items := []T_Item{
+items := []TItem{
     {
         ItemName: "my/OPC/path",
     },
@@ -64,15 +63,15 @@ options := map[string]string{
 }
 var ClientRequestHandle string
 var ClientItemHandles []string
-read_response, err := s.Read(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
+readResponse, err := s.Read(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
 ```
 
 ### Write
 ```go
-items := []T_Item{
+items := []TItem{
     {
         ItemName: "my/OPC/path",
-        Value: T_Value{
+        Value: TValue{
             Value: 123,
         },
     },
@@ -80,12 +79,12 @@ items := []T_Item{
 options := map[string]string{}
 var ClientRequestHandle string
 var ClientItemHandles []string
-write_response, err := s.Write(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
+writeResponse, err := s.Write(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
 ```
 
 ### Subscribe
 ```go
-items := []T_Item{
+items := []TItem{
     {
         ItemName: "my/OPC/path",
     },
@@ -98,6 +97,22 @@ options := map[string]string{
 var ClientRequestHandle string
 var ClientItemHandles []string
 SubscriptionPingRate := 5000
-subscribe_response, err := s.Subscribe(items, ClientRequestHandle, ClientItemHandles, "ns1", true, SubscriptionPingRate, false, options)
+subscribeResponse, err := s.Subscribe(items, ClientRequestHandle, ClientItemHandles, "ns1", true, SubscriptionPingRate, false, options)
 // for the SubscriptionPolledRefresh and SubscriptionCancel functionality see client_test.go
+```
+
+### GetProperties
+```go
+items := []TItem{
+    {
+        ItemName: "my/OPC/path",
+    },
+}
+propertyOptions := TPropertyOptions{
+    ReturnAllProperties:  true,
+    ReturnPropertyValues: true,
+    ReturnErrorText:      true,
+}
+var ClientRequestHandle string
+properties, err := s.GetProperties(items, propertyOptions, &ClientRequestHandle, "ns1")
 ```

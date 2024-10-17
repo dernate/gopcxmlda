@@ -303,3 +303,30 @@ func calcHoldTime(subscriptionPingRate uint, ServerTime TServerTime) (string, er
 	}
 
 }
+
+func buildGetPropertiesPayload(s *Server, ClientRequestHandle *string, namespace string, items []TItem, PropertyOptions TPropertyOptions) string {
+	var payload strings.Builder
+	//header
+	payload.WriteString(XmlVersion)
+	buildHeader(&payload, namespace)
+	//body
+	payload.WriteString(fmt.Sprintf(
+		"<%s:GetProperties LocaleID=\"%s\" ClientRequestHandle=\"%s\" ",
+		namespace, s.LocaleID, *ClientRequestHandle,
+	))
+	payload.WriteString(fmt.Sprintf(
+		"ReturnAllProperties=\"%s\" ReturnPropertyValues=\"%s\" ReturnErrorText=\"%s\">",
+		strconv.FormatBool(PropertyOptions.ReturnAllProperties), strconv.FormatBool(PropertyOptions.ReturnPropertyValues),
+		strconv.FormatBool(PropertyOptions.ReturnErrorText),
+	))
+	for _, item := range items {
+		payload.WriteString(fmt.Sprintf("<%s:ItemIDs ItemName=\"%s\" ItemPath=\"%s\"/>", namespace, item.ItemName, item.ItemPath))
+	}
+	for _, propertyName := range PropertyOptions.PropertyNames {
+		payload.WriteString(fmt.Sprintf("<%s:PropertyNames>%s</%s:PropertyNames>", namespace, propertyName, namespace))
+	}
+	payload.WriteString(fmt.Sprintf("</%s:GetProperties>", namespace))
+	payload.WriteString(Footer)
+
+	return payload.String()
+}

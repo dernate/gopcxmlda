@@ -182,3 +182,33 @@ func TestSubscribe(t *testing.T) {
 		t.Log("Subscription started, refreshed and canceled successfully")
 	}
 }
+
+func TestGetProperties(t *testing.T) {
+	err := godotenv.Load()
+	if err != nil {
+		t.Fatal("Error loading .env file")
+	}
+	OpcUrl := os.Getenv("OPC_URL")
+	_url, err := url.Parse(OpcUrl)
+	s := Server{_url, "en-US", 10}
+	var ClientRequestHandle string
+	items := []TItem{
+		{
+			ItemName: "Loc/Wec/Plant1/Log/Wecstd/Rep/Val-1",
+		},
+		{
+			ItemName: "Loc/LocNo",
+		},
+	}
+	propertyOptions := TPropertyOptions{
+		ReturnAllProperties:  true,
+		ReturnPropertyValues: true,
+		ReturnErrorText:      true,
+	}
+	p, err := s.GetProperties(items, propertyOptions, &ClientRequestHandle, "")
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("GetProperties: %+v", p)
+	}
+}
