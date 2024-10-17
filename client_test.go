@@ -123,14 +123,23 @@ func TestSubscribe(t *testing.T) {
 	_url, err := url.Parse(OpcUrl)
 	s := Server{_url, "en-US", 30}
 
-	_items := []string{"Loc/Wec/Plant3/Log/T82a1/Raw/Val-1"}
-	items := make([]TItem, len(_items))
-	for i, item := range _items {
-		items[i] = TItem{
-			ItemName: item,
-		}
+	items := []TItem{
+		{
+			ItemName:              "Loc/Wec/Plant1/Vane",
+			EnableBuffering:       true,
+			RequestedSamplingRate: 3000,
+		},
+		{
+			ItemName:              "Loc/Wec/Plant1/P",
+			EnableBuffering:       true,
+			RequestedSamplingRate: 1000,
+		},
+		{
+			ItemName:              "Loc/Wec/Plant1/Vwind",
+			EnableBuffering:       false,
+			RequestedSamplingRate: 5000,
+		},
 	}
-
 	options := map[string]interface{}{
 		"ReturnItemTime": true,
 		"ReturnItemPath": true,
@@ -138,11 +147,11 @@ func TestSubscribe(t *testing.T) {
 	}
 	var ClientRequestHandle string
 	var ClientItemHandles []string
-	for _, item := range _items {
-		ClientItemHandles = append(ClientItemHandles, item)
+	for _, item := range items {
+		ClientItemHandles = append(ClientItemHandles, item.ItemName)
 	}
-	SubscriptionPingRate := uint(20000)
-	response, err := s.Subscribe(items, &ClientRequestHandle, &ClientItemHandles, "", true, SubscriptionPingRate, false, 20000, options)
+	SubscriptionPingRate := uint(2000)
+	response, err := s.Subscribe(items, &ClientRequestHandle, &ClientItemHandles, "", true, SubscriptionPingRate, options)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -157,6 +166,71 @@ func TestSubscribe(t *testing.T) {
 	}
 	ServerTime := TServerTime{response.Response.Result.ReplyTime, false}
 	refreshResponse, err := s.SubscriptionPolledRefresh(
+		response.Response.ServerSubHandle, SubscriptionPingRate,
+		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Polled Refresh successful. RefreshResponse: %+v", refreshResponse)
+	}
+	ServerTime = TServerTime{
+		refreshResponse.Response.Result.ReplyTime,
+		false,
+	}
+	refreshResponse, err = s.SubscriptionPolledRefresh(
+		response.Response.ServerSubHandle, SubscriptionPingRate,
+		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Polled Refresh successful. RefreshResponse: %+v", refreshResponse)
+	}
+	ServerTime = TServerTime{
+		refreshResponse.Response.Result.ReplyTime,
+		false,
+	}
+	refreshResponse, err = s.SubscriptionPolledRefresh(
+		response.Response.ServerSubHandle, SubscriptionPingRate,
+		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Polled Refresh successful. RefreshResponse: %+v", refreshResponse)
+	}
+	ServerTime = TServerTime{
+		refreshResponse.Response.Result.ReplyTime,
+		false,
+	}
+	refreshResponse, err = s.SubscriptionPolledRefresh(
+		response.Response.ServerSubHandle, SubscriptionPingRate,
+		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Polled Refresh successful. RefreshResponse: %+v", refreshResponse)
+	}
+	ServerTime = TServerTime{
+		refreshResponse.Response.Result.ReplyTime,
+		false,
+	}
+	refreshResponse, err = s.SubscriptionPolledRefresh(
+		response.Response.ServerSubHandle, SubscriptionPingRate,
+		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
+	)
+	if err != nil {
+		t.Fatal(err)
+	} else {
+		t.Logf("Polled Refresh successful. RefreshResponse: %+v", refreshResponse)
+	}
+	ServerTime = TServerTime{
+		refreshResponse.Response.Result.ReplyTime,
+		false,
+	}
+	refreshResponse, err = s.SubscriptionPolledRefresh(
 		response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)

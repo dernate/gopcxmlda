@@ -421,8 +421,8 @@ func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHan
 //			 // do something with the response-object T_Subscribe
 //		 }
 func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
-	namespace string, returnValuesOnReply bool, subscriptionPingRate uint, enableBuffering bool,
-	requestedSamplingRate uint, options map[string]interface{}) (TSubscribe, error) {
+	namespace string, returnValuesOnReply bool, subscriptionPingRate uint,
+	options map[string]interface{}) (TSubscribe, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
@@ -440,7 +440,7 @@ func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientIte
 		}
 	}
 	payload := buildSubscribePayload(namespace, items, ClientRequestHandle, ClientItemHandles,
-		returnValuesOnReply, subscriptionPingRate, enableBuffering, requestedSamplingRate, options)
+		returnValuesOnReply, subscriptionPingRate, options)
 
 	var errReturn error
 	response, err := send(s, payload)

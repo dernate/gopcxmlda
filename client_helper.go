@@ -96,7 +96,7 @@ func buildOptionItems(optionPayload *strings.Builder, options map[string]interfa
 		for key, value := range options {
 			if reflect.TypeOf(value).Kind() == reflect.Bool {
 				optionPayload.WriteString(
-					fmt.Sprintf(" %s=\"%v\"", key, strings.ToLower(fmt.Sprintf("%v", value))),
+					fmt.Sprintf(" %s=\"%s\"", key, strings.ToLower(fmt.Sprintf("%v", value))),
 				)
 			} else {
 				optionPayload.WriteString(fmt.Sprintf(" %s=\"%v\"", key, value))
@@ -220,32 +220,33 @@ func buildWriteItemsValue(value TValue, namespace string) string {
 }
 
 func buildSubscribePayload(namespace string, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
-	returnValuesOnReply bool, subscriptionPingRate uint, enableBuffering bool, requestedSamplingRate uint, options map[string]interface{}) string {
+	returnValuesOnReply bool, subscriptionPingRate uint, options map[string]interface{}) string {
 	var payload strings.Builder
 	//header
 	payload.WriteString(XmlVersion)
 	buildHeader(&payload, namespace)
 	//body
 
-	payload.WriteString(fmt.Sprintf("<%s:Subscribe ReturnValuesOnReply=\"%s\" SubscriptionPingRate=\"%v\" ClientRequestHandle=\"%s\">",
+	payload.WriteString(fmt.Sprintf("<%s:Subscribe ReturnValuesOnReply=\"%s\" SubscriptionPingRate=\"%d\" ClientRequestHandle=\"%s\">",
 		namespace, strings.ToLower(fmt.Sprintf("%v", returnValuesOnReply)), subscriptionPingRate, *ClientRequestHandle))
 	buildOptionItems(&payload, options, namespace)
-	payload.WriteString(fmt.Sprintf("<%s:ItemList xsi:type=\"SubscribeRequestItemList\" ItemPath=\"\" ", namespace))
-	payload.WriteString(fmt.Sprintf("Deadband=\"0.0\" RequestedSamplingRate=\"%v\" ", requestedSamplingRate))
-	payload.WriteString(fmt.Sprintf("EnableBuffering=\"%s\">", strings.ToLower(fmt.Sprintf("%v", enableBuffering))))
-	payload.WriteString(buildSubscribeItems(items, ClientItemHandles, namespace, enableBuffering, requestedSamplingRate))
+	payload.WriteString(fmt.Sprintf("<%s:ItemList xsi:type=\"SubscribeRequestItemList\" ItemPath=\"\">", namespace))
+	payload.WriteString(buildSubscribeItems(items, ClientItemHandles, namespace))
 	payload.WriteString(fmt.Sprintf("</%s:ItemList></%s:Subscribe>", namespace, namespace))
 	payload.WriteString(Footer)
 
 	return payload.String()
 }
 
-func buildSubscribeItems(items []TItem, ClientItemHandles *[]string, namespace string, enableBuffering bool, requestedSamplingRate uint) string {
+func buildSubscribeItems(items []TItem, ClientItemHandles *[]string, namespace string) string {
 	var subscribeItems strings.Builder
 
 	for i, item := range items {
-		subscribeItems.WriteString(fmt.Sprintf("<%s:Items xsi:type=\"%s:SubscribeRequestItem\" Deadband=\"0.0\" ", namespace, namespace))
-		subscribeItems.WriteString(fmt.Sprintf("RequestedSamplingRate=\"%v\" EnableBuffering=\"%s\"", requestedSamplingRate, strings.ToLower(fmt.Sprintf("%v", enableBuffering))))
+		subscribeItems.WriteString(fmt.Sprintf("<%s:Items xsi:type=\"%s:SubscribeRequestItem\" Deadband=\"%.0f\" ", namespace, namespace, item.DeadBand))
+		subscribeItems.WriteString(fmt.Sprintf(
+			"RequestedSamplingRate=\"%d\" EnableBuffering=\"%s\"",
+			item.RequestedSamplingRate, strings.ToLower(fmt.Sprintf("%t", item.EnableBuffering)),
+		))
 		if item.ItemName != "" {
 			subscribeItems.WriteString(fmt.Sprintf(" ItemName=\"%s\"", item.ItemName))
 		}

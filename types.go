@@ -64,13 +64,16 @@ type TItemList struct {
 
 // TItem represents the structure for an item.
 type TItem struct {
-	Timestamp        time.Time `xml:"Timestamp,attr"`
-	ClientItemHandle string    `xml:"ClientItemHandle,attr"`
-	ItemName         string    `xml:"ItemName,attr"`
-	Value            TValue    `xml:"Value"`
-	Quality          TQuality  `xml:"Quality"`
-	ItemPath         string    `xml:"ItemPath,attr"`
-	Error            string    `xml:"ResultID,attr"`
+	Timestamp             time.Time `xml:"Timestamp,attr"`
+	ClientItemHandle      string    `xml:"ClientItemHandle,attr"`
+	ItemName              string    `xml:"ItemName,attr"`
+	Value                 TValue    `xml:"Value"`
+	Quality               TQuality  `xml:"Quality"`
+	ItemPath              string    `xml:"ItemPath,attr"`
+	Error                 string    `xml:"ResultID,attr"`
+	RequestedSamplingRate uint
+	EnableBuffering       bool
+	DeadBand              float64
 }
 
 // TValue represents the structure for the value of an item.
