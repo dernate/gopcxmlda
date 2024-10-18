@@ -1,8 +1,11 @@
 package gopcxmlda
 
 import (
+	"context"
 	"net/url"
 	"os"
+	"os/signal"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,7 +24,13 @@ func TestGetStatus(t *testing.T) {
 	}
 	s := Server{_url, "en-US", 10}
 	var ClientRequestHandle string
-	Status, err := s.GetStatus(&ClientRequestHandle, "")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	Status, err := s.GetStatus(ctx, &ClientRequestHandle, "")
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -55,7 +64,13 @@ func TestRead(t *testing.T) {
 	}
 	var ClientRequestHandle string
 	var ClientItemHandles []string
-	R, err := s.Read(items, &ClientRequestHandle, &ClientItemHandles, "", options)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	R, err := s.Read(ctx, items, &ClientRequestHandle, &ClientItemHandles, "", options)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -72,7 +87,13 @@ func TestBrowse(t *testing.T) {
 	_url, err := url.Parse(OpcUrl)
 	s := Server{_url, "en-US", 10}
 	var ClientRequestHandle string
-	r, err := s.Browse("Loc/Wec/Plant1", &ClientRequestHandle, "", TBrowseOptions{
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	r, err := s.Browse(ctx, "Loc/Wec/Plant1", &ClientRequestHandle, "", TBrowseOptions{
 		ReturnAllProperties:  true,
 		ReturnPropertyValues: true,
 	})
@@ -106,7 +127,13 @@ func TestWrite(t *testing.T) {
 		"ReturnItemName":  true,
 		"ReturnItemPath":  true,
 	}
-	w, err := s.Write(items, &ClientRequestHandle, &ClientItemHandles, "", options)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	w, err := s.Write(ctx, items, &ClientRequestHandle, &ClientItemHandles, "", options)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -151,7 +178,13 @@ func TestSubscribe(t *testing.T) {
 		ClientItemHandles = append(ClientItemHandles, item.ItemName)
 	}
 	SubscriptionPingRate := uint(2000)
-	response, err := s.Subscribe(items, &ClientRequestHandle, &ClientItemHandles, "", true, SubscriptionPingRate, options)
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	response, err := s.Subscribe(ctx, items, &ClientRequestHandle, &ClientItemHandles, "", true, SubscriptionPingRate, options)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -166,7 +199,7 @@ func TestSubscribe(t *testing.T) {
 	}
 	ServerTime := TServerTime{response.Response.Result.ReplyTime, false}
 	refreshResponse, err := s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -179,7 +212,7 @@ func TestSubscribe(t *testing.T) {
 		false,
 	}
 	refreshResponse, err = s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -192,7 +225,7 @@ func TestSubscribe(t *testing.T) {
 		false,
 	}
 	refreshResponse, err = s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -205,7 +238,7 @@ func TestSubscribe(t *testing.T) {
 		false,
 	}
 	refreshResponse, err = s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -218,7 +251,7 @@ func TestSubscribe(t *testing.T) {
 		false,
 	}
 	refreshResponse, err = s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -231,7 +264,7 @@ func TestSubscribe(t *testing.T) {
 		false,
 	}
 	refreshResponse, err = s.SubscriptionPolledRefresh(
-		response.Response.ServerSubHandle, SubscriptionPingRate,
+		ctx, response.Response.ServerSubHandle, SubscriptionPingRate,
 		"", &ClientRequestHandle1, optionsPolledRefresh, ServerTime,
 	)
 	if err != nil {
@@ -247,7 +280,7 @@ func TestSubscribe(t *testing.T) {
 
 	// Unsubscribe
 	var ClientRequestHandle2 string
-	canceled, err := s.SubscriptionCancel(response.Response.ServerSubHandle, "", &ClientRequestHandle2)
+	canceled, err := s.SubscriptionCancel(ctx, response.Response.ServerSubHandle, "", &ClientRequestHandle2)
 	if err != nil {
 		t.Fatal(err)
 	} else if !canceled {
@@ -279,7 +312,13 @@ func TestGetProperties(t *testing.T) {
 		ReturnPropertyValues: true,
 		ReturnErrorText:      true,
 	}
-	p, err := s.GetProperties(items, propertyOptions, &ClientRequestHandle, "")
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+	}()
+	p, err := s.GetProperties(ctx, items, propertyOptions, &ClientRequestHandle, "")
 	if err != nil {
 		t.Fatal(err)
 	} else {

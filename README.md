@@ -37,14 +37,14 @@ func main() {
 ### GetStatus
 ```go
 var ClientRequestHandle string
-status, err := s.GetStatus(ClientRequestHandle, "ns1")
+status, err := s.GetStatus(context.Background(), ClientRequestHandle, "ns1")
 ```
 
 ### Browse
 ```go
 options := TBrowseOptions{}
 var ClientRequestHandle string
-browseResponse, err := s.Browse("my/OPC/path", ClientRequestHandle, "ns1", options)
+browseResponse, err := s.Browse(context.Background(), "my/OPC/path", ClientRequestHandle, "ns1", options)
 ```
 
 ### Read
@@ -63,7 +63,7 @@ options := map[string]string{
 }
 var ClientRequestHandle string
 var ClientItemHandles []string
-readResponse, err := s.Read(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
+readResponse, err := s.Read(context.Background(), items, ClientRequestHandle, ClientItemHandles, "ns1", options)
 ```
 
 ### Write
@@ -79,7 +79,7 @@ items := []TItem{
 options := map[string]string{}
 var ClientRequestHandle string
 var ClientItemHandles []string
-writeResponse, err := s.Write(items, ClientRequestHandle, ClientItemHandles, "ns1", options)
+writeResponse, err := s.Write(context.Background(), items, ClientRequestHandle, ClientItemHandles, "ns1", options)
 ```
 
 ### Subscribe
@@ -97,7 +97,7 @@ options := map[string]string{
 var ClientRequestHandle string
 var ClientItemHandles []string
 SubscriptionPingRate := 5000
-subscribeResponse, err := s.Subscribe(items, ClientRequestHandle, ClientItemHandles, "ns1", true, SubscriptionPingRate, false, options)
+subscribeResponse, err := s.Subscribe(context.Background(), items, ClientRequestHandle, ClientItemHandles, "ns1", true, SubscriptionPingRate, false, options)
 // for the SubscriptionPolledRefresh and SubscriptionCancel functionality see client_test.go
 ```
 
@@ -114,5 +114,5 @@ propertyOptions := TPropertyOptions{
     ReturnErrorText:      true,
 }
 var ClientRequestHandle string
-properties, err := s.GetProperties(items, propertyOptions, &ClientRequestHandle, "ns1")
+properties, err := s.GetProperties(context.Background(), items, propertyOptions, &ClientRequestHandle, "ns1")
 ```

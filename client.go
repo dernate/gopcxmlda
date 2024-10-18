@@ -1,6 +1,7 @@
 package gopcxmlda
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/xml"
@@ -50,6 +51,7 @@ func GenerateClientHandles(count int) (string, []string, error) {
 // It returns the status of the client request as a TGetStatus struct and an error, if any.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - namespace (string): The namespace to use for the request.
 //
@@ -59,15 +61,16 @@ func GenerateClientHandles(count int) (string, []string, error) {
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//			response, ClientRequestHandle, err := s.GetStatus("", "")
-//			if err != nil {
-//				log.Fatal(err)
-//			} else {
-//				// do something with the response-object TGetStatus
-//			}
-func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (TGetStatus, error) {
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//	         var ClientRequestHandle string
+//				response, ClientRequestHandle, err := s.GetStatus(context.Background, &ClientRequestHandle, "")
+//				if err != nil {
+//					log.Fatal(err)
+//				} else {
+//					// do something with the response-object TGetStatus
+//				}
+func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, namespace string) (TGetStatus, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
@@ -82,7 +85,7 @@ func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (TGetS
 	payload := buildGetStatusPayload(s, namespace, ClientRequestHandle)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -124,6 +127,7 @@ func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (TGetS
 // It returns the read result and an error if any.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - items ([]TItem): The items to read from the server.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - ClientItemHandles (*[]string): The client item handles to use for the request.
@@ -136,24 +140,25 @@ func (s *Server) GetStatus(ClientRequestHandle *string, namespace string) (TGetS
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//			items := []TItem{
-//				{
-//					ItemName: "My/Item",
-//				},
-//			}
-//			options := map[string]string{
-//				"ReturnItemTime": "true",
-//				"returnItemPath": "true",
-//			}
-//			response, err := s.Read(items, "", options)
-//			if err != nil {
-//				log.Fatal(err)
-//			} else {
-//				// do something with the response-object TRead
-//			}
-func (s *Server) Read(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//				items := []TItem{
+//					{
+//						ItemName: "My/Item",
+//					},
+//				}
+//				options := map[string]string{
+//					"ReturnItemTime": "true",
+//					"returnItemPath": "true",
+//				}
+//	         var ClientRequestHandle string
+//				response, err := s.Read(context.Background, items, &ClientRequestHandle, options)
+//				if err != nil {
+//					log.Fatal(err)
+//				} else {
+//					// do something with the response-object TRead
+//				}
+func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TRead, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -174,7 +179,7 @@ func (s *Server) Read(items []TItem, ClientRequestHandle *string, ClientItemHand
 	payload := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -218,6 +223,7 @@ func (s *Server) Read(items []TItem, ClientRequestHandle *string, ClientItemHand
 // It returns the browse response and an error if any.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - itemPath (string): The path of the item to browse.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - namespace (string): The namespace to use for the request.
@@ -229,15 +235,16 @@ func (s *Server) Read(items []TItem, ClientRequestHandle *string, ClientItemHand
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//			response, err := s.Browse("My/Item", "", TBrowseOptions{})
-//			if err != nil {
-//				log.Fatal(err)
-//			} else {
-//				// do something with the response-object TBrowse
-//			}
-func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//	         var ClientRequestHandle string
+//				response, err := s.Browse(context.Background, "My/Item", &ClientRequestHandle, TBrowseOptions{})
+//				if err != nil {
+//					log.Fatal(err)
+//				} else {
+//					// do something with the response-object TBrowse
+//				}
+func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandle *string,
 	namespace string, options TBrowseOptions) (TBrowse, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -253,7 +260,7 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 	payload := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -296,6 +303,7 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 // It returns the write result and an error if any.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - items ([]TItem): The items to write to the server.
 // - ClientRequestHandle (*string): The client request handle to use for the request.
 // - ClientItemHandles (*[]string): The client item handles to use for the request.
@@ -308,29 +316,30 @@ func (s *Server) Browse(itemPath string, ClientRequestHandle *string,
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//		 items := []TItem{
-//			{
-//				ItemName: "My/Item",
-//		 		Value: T_Value{
-//		 			Value: []int{0, 0, 0},
-//		 		},
-//		 	},
-//			{
-//				ItemName: "My/Item2",
-//		 		Value: T_Value{
-//		 			Value: 1.234,
-//		 		},
-//		 	},
-//		 }
-//		 response, err := s.Write(items, "", map[string]string{})
-//		 if err != nil {
-//			t.Fatal(err)
-//		 } else {
-//		 	t.Log(response)
-//		 }
-func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//			 items := []TItem{
+//				{
+//					ItemName: "My/Item",
+//			 		Value: T_Value{
+//			 			Value: []int{0, 0, 0},
+//			 		},
+//			 	},
+//				{
+//					ItemName: "My/Item2",
+//			 		Value: T_Value{
+//			 			Value: 1.234,
+//			 		},
+//			 	},
+//			 }
+//	      var ClientRequestHandle string
+//			 response, err := s.Write(context.Background, items, &ClientRequestHandle, map[string]string{})
+//			 if err != nil {
+//				t.Fatal(err)
+//			 } else {
+//			 	t.Log(response)
+//			 }
+func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TWrite, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -351,7 +360,7 @@ func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHan
 	payload := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -392,6 +401,7 @@ func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHan
 // Subscribe subscribes a client to a set of items, enabling the client to receive updates about the items' states.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - items: A slice of TItem representing the items to be subscribed to.
 // - ClientRequestHandle: A pointer to a string representing the client request handle. If not provided, it will be generated.
 // - ClientItemHandles: A pointer to a slice of strings representing the client item handles. If not provided, they will be generated.
@@ -407,20 +417,21 @@ func (s *Server) Write(items []TItem, ClientRequestHandle *string, ClientItemHan
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//		 items := []TItem{
-//			 {
-//				 ItemName: "My/Item",
-//			 },
-//		 }
-//		 response, err := s.Subscribe(items, "", "", "", false, 0, false, map[string]interface{})
-//		 if err != nil {
-//			 log.Fatal(err)
-//		 } else {
-//			 // do something with the response-object T_Subscribe
-//		 }
-func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//			 items := []TItem{
+//				 {
+//					 ItemName: "My/Item",
+//				 },
+//			 }
+//	  	 var ClientRequestHandle string
+//			 response, err := s.Subscribe(context.Background, items, &ClientRequestHandle, "", "", false, 0, false, map[string]interface{})
+//			 if err != nil {
+//				 log.Fatal(err)
+//			 } else {
+//				 // do something with the response-object T_Subscribe
+//			 }
+func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, returnValuesOnReply bool, subscriptionPingRate uint,
 	options map[string]interface{}) (TSubscribe, error) {
 	if namespace == "" {
@@ -443,7 +454,7 @@ func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientIte
 		returnValuesOnReply, subscriptionPingRate, options)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -484,6 +495,7 @@ func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientIte
 // SubscriptionCancel cancels a subscription on the server.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - serverSubHandle (string): The handle of the subscription to be canceled on the server (given by the server).
 // - namespace (string): The namespace to be used. If empty, it defaults to "ns0".
 // - ClientRequestHandle (*string): A pointer to a client request handle. If the value pointed to is empty, a new handle is generated.
@@ -494,15 +506,17 @@ func (s *Server) Subscribe(items []TItem, ClientRequestHandle *string, ClientIte
 //
 // Example:
 //
-//	 _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		success, err := s.SubscriptionCancel("subHandle123", "ns1", &clientHandle)
-//		if err != nil {
-//		    // Handle error
-//		}
-//		if success {
-//		    // Handle successful cancellation
-//		}
-func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, ClientRequestHandle *string) (bool, error) {
+//		    _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//	     s := Server{_url, "en-US", 10}
+//	     var clientRequestHandle string
+//			success, err := s.SubscriptionCancel(context.Background, "subHandle123", "ns1", &ClientRequestHandle)
+//			if err != nil {
+//			    // Handle error
+//			}
+//			if success {
+//			    // Handle successful cancellation
+//			}
+func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string, namespace string, ClientRequestHandle *string) (bool, error) {
 	if namespace == "" {
 		namespace = "ns0"
 	}
@@ -517,7 +531,7 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 	payload := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -559,6 +573,7 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 // by sending a polled refresh request to the server.
 //
 // Parameters:
+// - ctx (context.Context): The context of the request.
 // - serverSubHandle (string): The handle of the server subscription to refresh (given by the server).
 // - SubscriptionPingRate (uint): The rate at which the subscription should be pinged.
 // - namespace (string): The namespace to be used for the subscription. If empty, defaults to "ns0".
@@ -572,15 +587,16 @@ func (s *Server) SubscriptionCancel(serverSubHandle string, namespace string, Cl
 //
 // Example:
 //
-//	  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//		 s := Server{_url, "en-US", 10}
-//		 response, err := s.SubscriptionPolledRefresh("subHandle123", 1000, "ns1", &clientHandle, map[string]interface{}{}, T_ServerTime{})
-//		 if err != nil {
-//			 log.Fatal(err)
-//		 } else {
-//			 // do something with the response-object T_SubscriptionPolledRefresh
-//		 }
-func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionPingRate uint, namespace string,
+//		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//	      var ClientRequestHandle string
+//			 response, err := s.SubscriptionPolledRefresh(context.Background, "subHandle123", 1000, "ns1", &ClientRequestHandle, map[string]interface{}{}, T_ServerTime{})
+//			 if err != nil {
+//				 log.Fatal(err)
+//			 } else {
+//				 // do something with the response-object T_SubscriptionPolledRefresh
+//			 }
+func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle string, SubscriptionPingRate uint, namespace string,
 	ClientRequestHandle *string, options map[string]interface{}, ServerTime TServerTime) (TSubscriptionPolledRefresh, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -601,7 +617,7 @@ func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionP
 	}
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -639,7 +655,41 @@ func (s *Server) SubscriptionPolledRefresh(serverSubHandle string, SubscriptionP
 	return SPR, errReturn
 }
 
-func (s *Server) GetProperties(items []TItem, PropertyOptions TPropertyOptions,
+// GetProperties is a method of the Server struct that retrieves the properties of a set of items from the server.
+//
+// Parameters:
+// - ctx (context.Context): The context of the request.
+// - items ([]TItem): A slice of TItem representing the items to retrieve properties for.
+// - PropertyOptions (TPropertyOptions): The options for the properties request.
+// - ClientRequestHandle (*string): A pointer to a string representing the client request handle. If empty, a new handle will be generated.
+// - namespace (string): The namespace to be used for the request. If empty, defaults to "ns0".
+//
+// Returns:
+// - TGetProperties: The response from the server containing the properties of the requested items.
+// - error: An error object if an error occurred during the process.
+//
+// Example:
+//
+//		     _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
+//			 s := Server{_url, "en-US", 10}
+//			 items := []TItem{
+//				 {
+//					 ItemName: "My/Item",
+//				 },
+//			 }
+//			 propertyOptions := TPropertyOptions{
+//		 		ReturnAllProperties:  true,
+//				ReturnPropertyValues: true,
+//				ReturnErrorText:      true,
+//			 }
+//	      var ClientRequestHandle string
+//			 response, err := s.GetProperties(context.Background, items, propertyOptions, &ClientRequestHandle, "")
+//			 if err != nil {
+//				 log.Fatal(err)
+//			 } else {
+//				 // do something with the response-object TGetProperties
+//			 }
+func (s *Server) GetProperties(ctx context.Context, items []TItem, PropertyOptions TPropertyOptions,
 	ClientRequestHandle *string, namespace string) (TGetProperties, error) {
 	if namespace == "" {
 		namespace = "ns0"
@@ -657,7 +707,7 @@ func (s *Server) GetProperties(items []TItem, PropertyOptions TPropertyOptions,
 	payload := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
 
 	var errReturn error
-	response, err := send(s, payload)
+	response, err := send(ctx, s, payload)
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}

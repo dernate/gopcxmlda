@@ -2,6 +2,7 @@ package gopcxmlda
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -23,15 +24,22 @@ func buildHeader(builder *strings.Builder, namespace string) string {
 }
 
 // send sends a payload to the server and returns the byte response and an error if any.
-func send(s *Server, payload string) ([]byte, error) {
+func send(ctx context.Context, s *Server, payload string) ([]byte, error) {
 	if s.Timeout == 0 {
 		s.Timeout = 10
 	}
 	postbody := bytes.NewBuffer([]byte(payload))
-	httpClient := http.Client{
-		Timeout: s.Timeout * time.Second,
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.Url.String(), postbody)
+	if err != nil {
+		return []byte(""), err
 	}
-	resp, err := httpClient.Post(s.Url.String(), HeadersSoap["content-type"], postbody)
+	req.Header.Set("Content-Type", HeadersSoap["content-type"])
+	httpClient := &http.Client{
+		Timeout: s.Timeout,
+	}
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return []byte(""), err
 	}
