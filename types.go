@@ -181,10 +181,11 @@ type TSubscriptionPolledRefresh struct {
 }
 
 type TResponseSPR struct {
-	DataBufferOverflow bool         `xml:"DataBufferOverflow,attr"`
-	Result             TBaseResult  `xml:"SubscriptionPolledRefreshResult"`
-	ItemList           TItemListSPR `xml:"RItemList"`
-	Errors             OpcErrors    `xml:"Errors"`
+	DataBufferOverflow      bool         `xml:"DataBufferOverflow,attr"`
+	Result                  TBaseResult  `xml:"SubscriptionPolledRefreshResult"`
+	ItemList                TItemListSPR `xml:"RItemList"`
+	Errors                  OpcErrors    `xml:"Errors"`
+	InvalidServerSubHandles []string     `xml:"InvalidServerSubHandles"`
 }
 
 type TItemListSPR struct {

@@ -647,6 +647,14 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 			)),
 		)
 	}
+	if len(SPR.Response.InvalidServerSubHandles) > 0 {
+		errReturn = errors.Join(errReturn,
+			errors.New(fmt.Sprintf(
+				"InvalidServerSubHandles: %v",
+				SPR.Response.InvalidServerSubHandles,
+			)),
+		)
+	}
 
 	if errReturn != nil {
 		logError(errReturn, "SubscriptionPolledRefresh")
