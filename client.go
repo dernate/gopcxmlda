@@ -85,7 +85,7 @@ func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, nam
 	payload := buildGetStatusPayload(s, namespace, ClientRequestHandle)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "GetStatus")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -179,7 +179,7 @@ func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *s
 	payload := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "Read")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -260,7 +260,7 @@ func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandl
 	payload := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "Browse")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -360,7 +360,7 @@ func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *
 	payload := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "Write")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -454,7 +454,7 @@ func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHand
 		returnValuesOnReply, subscriptionPingRate, options)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "Subscribe")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -531,7 +531,7 @@ func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string,
 	payload := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "SubscriptionCancel")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -617,7 +617,7 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 	}
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "SubscriptionPolledRefresh")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}
@@ -715,7 +715,7 @@ func (s *Server) GetProperties(ctx context.Context, items []TItem, PropertyOptio
 	payload := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
 
 	var errReturn error
-	response, err := send(ctx, s, payload)
+	response, err := send(ctx, s, payload, "GetProperties")
 	if err != nil {
 		errReturn = errors.Join(errReturn, err)
 	}

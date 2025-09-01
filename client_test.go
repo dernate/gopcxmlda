@@ -22,7 +22,7 @@ func TestGetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := Server{_url, "en-US", 10}
+	s := Server{_url, "en-US", 10 * time.Second}
 	var ClientRequestHandle string
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -45,7 +45,7 @@ func TestRead(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10}
+	s := Server{_url, "en-US", 10 * time.Second}
 	items := []TItem{
 		{
 			ItemName: "Loc/Wec/Plant1/P",
@@ -85,7 +85,7 @@ func TestBrowse(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10}
+	s := Server{_url, "en-US", 10 * time.Second}
 	var ClientRequestHandle string
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -111,7 +111,7 @@ func TestWrite(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10}
+	s := Server{_url, "en-US", 10 * time.Second}
 	items := []TItem{
 		{
 			ItemName: "Loc/Wec/Plant1/Ctrl/SessionRequest",
@@ -148,7 +148,7 @@ func TestSubscribe(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 30}
+	s := Server{_url, "en-US", 30 * time.Second}
 
 	items := []TItem{
 		{
@@ -297,7 +297,7 @@ func TestGetProperties(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10}
+	s := Server{_url, "en-US", 10 * time.Second}
 	var ClientRequestHandle string
 	items := []TItem{
 		{

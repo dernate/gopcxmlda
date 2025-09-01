@@ -1,7 +1,15 @@
 package gopcxmlda
 
 var HeadersSoap = map[string]string{
-	"content-type": "application/soap+xml",
+	"content-type":                         "application/soap+xml",
+	"SOAPAction-GetStatus":                 "http://opcfoundation.org/webservices/XMLDA/1.0/GetStatus",
+	"SOAPAction-GetProperties":             "http://opcfoundation.org/webservices/XMLDA/1.0/GetProperties",
+	"SOAPAction-Read":                      "http://opcfoundation.org/webservices/XMLDA/1.0/Read",
+	"SOAPAction-Write":                     "http://opcfoundation.org/webservices/XMLDA/1.0/Write",
+	"SOAPAction-Browse":                    "http://opcfoundation.org/webservices/XMLDA/1.0/Browse",
+	"SOAPAction-Subscribe":                 "http://opcfoundation.org/webservices/XMLDA/1.0/Subscribe",
+	"SOAPAction-SubscriptionPolledRefresh": "http://opcfoundation.org/webservices/XMLDA/1.0/SubscriptionPolledRefresh",
+	"SOAPAction-SubscriptionCancel":        "http://opcfoundation.org/webservices/XMLDA/1.0/SubscriptionCancel",
 }
 
 const XmlVersion = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
