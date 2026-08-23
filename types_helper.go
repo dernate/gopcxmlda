@@ -14,7 +14,13 @@ import (
 // Array values are handled by the decodeArrayOf function, whereas single values
 // are handled by the switch statement that handles the different types.
 func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	if len(start.Attr) == 0 {
+		return fmt.Errorf("gopcxmlda: missing xsi:type attribute on <%s> element", start.Name.Local)
+	}
 	split := strings.Split(start.Attr[0].Value, ":")
+	if len(split) < 2 {
+		return fmt.Errorf("gopcxmlda: unexpected xsi:type attribute %q on <%s> element", start.Attr[0].Value, start.Name.Local)
+	}
 	v.Namespace = split[0]
 	v.Type = split[1]
 	switch v.Type {

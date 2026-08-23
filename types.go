@@ -1,6 +1,7 @@
 package gopcxmlda
 
 import (
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -10,6 +11,7 @@ type Server struct {
 	Url      *url.URL      // URL of the server
 	LocaleID string        // Locale ID of the server
 	Timeout  time.Duration // Timeout duration for the connection
+	Client   *http.Client  // HTTP client used for requests. Created lazily (using Timeout) if nil, and then reused.
 }
 
 type TBaseResult struct {
@@ -161,7 +163,7 @@ type TSubscribeItemValue struct {
 
 type TSubscriptionCancel struct {
 	TBodyBase
-	Response TResponseSC `xml:"Body>https://opcfoundation.org/webservices/XMLDA/1.0/ SubscriptionCancelResponse"`
+	Response TResponseSC `xml:"Body>SubscriptionCancelResponse"`
 }
 
 type TResponseSC struct {
@@ -238,3 +240,22 @@ type TPropertyOptions struct {
 	ReturnPropertyValues bool
 	ReturnErrorText      bool
 }
+
+// soapResponse is implemented by every SOAP response wrapper and lets doRequest
+// extract the fault/error information common to all of them, regardless of the
+// concrete response type.
+type soapResponse interface {
+	fault() TSoapError
+	responseErrors() OpcErrors
+}
+
+func (b TBodyBase) fault() TSoapError { return b.Fault }
+
+func (t TGetStatus) responseErrors() OpcErrors                 { return t.Response.Errors }
+func (t TRead) responseErrors() OpcErrors                      { return t.Response.Errors }
+func (t TBrowse) responseErrors() OpcErrors                    { return t.Response.Errors }
+func (t TWrite) responseErrors() OpcErrors                     { return t.Response.Errors }
+func (t TSubscribe) responseErrors() OpcErrors                 { return t.Response.Errors }
+func (t TSubscriptionCancel) responseErrors() OpcErrors        { return t.Response.Errors }
+func (t TSubscriptionPolledRefresh) responseErrors() OpcErrors { return t.Response.Errors }
+func (t TGetProperties) responseErrors() OpcErrors             { return t.Response.Errors }
