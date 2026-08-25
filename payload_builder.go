@@ -4,9 +4,22 @@ import (
 	"encoding/xml"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
+
+// checkHandleCount returns an error if the caller-supplied ClientItemHandles doesn't
+// have exactly one handle per item. Without this check, a mismatched slice (e.g.
+// reused from a previous, differently-sized batch) causes an index-out-of-range
+// panic deep inside payload construction instead of a clear error.
+func checkHandleCount(itemCount int, clientItemHandles []string) error {
+	if len(clientItemHandles) != itemCount {
+		return fmt.Errorf("gopcxmlda: got %d ClientItemHandles for %d items, lengths must match",
+			len(clientItemHandles), itemCount)
+	}
+	return nil
+}
 
 // marshalPayload marshals body via encoding/xml and wraps the result in the SOAP
 // envelope for namespace. Using encoding/xml for the body (instead of hand-built
@@ -103,6 +116,9 @@ type xmlReadRequest struct {
 
 func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles *[]string, namespace string,
 	items []TItem, options map[string]interface{}) (string, error) {
+	if err := checkHandleCount(len(items), *ClientItemHandles); err != nil {
+		return "", err
+	}
 	readItems := make([]xmlReadItem, len(items))
 	for i, item := range items {
 		readItems[i] = xmlReadItem{
@@ -220,8 +236,15 @@ type xmlWriteRequest struct {
 
 func buildWritePayload(s *Server, namespace string, items []TItem, ClientRequestHandle *string,
 	ClientItemHandles *[]string, options map[string]interface{}) (string, error) {
+	if err := checkHandleCount(len(items), *ClientItemHandles); err != nil {
+		return "", err
+	}
+
 	// make sure all items have a (correct) opc-xml-da type
-	items = setOpcXmlDaTypes(items)
+	items, err := setOpcXmlDaTypes(items)
+	if err != nil {
+		return "", err
+	}
 
 	writeItems := make([]xmlWriteItem, len(items))
 	for i, item := range items {
@@ -286,12 +309,18 @@ type xmlSubscribeRequest struct {
 
 func buildSubscribePayload(namespace string, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	returnValuesOnReply bool, subscriptionPingRate uint, options map[string]interface{}) (string, error) {
+	if err := checkHandleCount(len(items), *ClientItemHandles); err != nil {
+		return "", err
+	}
 	subscribeItems := make([]xmlSubscribeItem, len(items))
 	for i, item := range items {
 		subscribeItems[i] = xmlSubscribeItem{
-			XMLName:               xml.Name{Local: namespace + ":Items"},
-			Type:                  namespace + ":SubscribeRequestItem",
-			DeadBand:              fmt.Sprintf("%.0f", item.DeadBand),
+			XMLName: xml.Name{Local: namespace + ":Items"},
+			Type:    namespace + ":SubscribeRequestItem",
+			// FormatFloat with precision -1 renders the minimal number of digits that
+			// round-trips exactly (e.g. 2.5 -> "2.5"), unlike the previous "%.0f" which
+			// truncated every DeadBand to a whole number (2.5 -> "2").
+			DeadBand:              strconv.FormatFloat(item.DeadBand, 'f', -1, 64),
 			RequestedSamplingRate: item.RequestedSamplingRate,
 			EnableBuffering:       item.EnableBuffering,
 			ItemName:              item.ItemName,

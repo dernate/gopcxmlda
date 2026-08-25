@@ -8,18 +8,46 @@ import (
 	"time"
 )
 
+// xsiNamespace is the standard XML Schema Instance namespace URI that xsi:type is
+// defined in.
+const xsiNamespace = "http://www.w3.org/2001/XMLSchema-instance"
+
+// findTypeAttr locates the xsi:type attribute among attrs by name, rather than
+// assuming it is always the first attribute on the element. Attribute order is not
+// semantically significant in XML, so relying on positional order (e.g. attrs[0])
+// breaks as soon as a server emits any other attribute (including a locally-scoped
+// xmlns declaration) before xsi:type. Prefers an attribute explicitly in the xsi
+// namespace, falling back to any attribute simply named "type" for servers that
+// don't resolve the namespace as expected.
+func findTypeAttr(attrs []xml.Attr) *xml.Attr {
+	var fallback *xml.Attr
+	for i := range attrs {
+		if attrs[i].Name.Local != "type" {
+			continue
+		}
+		if attrs[i].Name.Space == xsiNamespace {
+			return &attrs[i]
+		}
+		if fallback == nil {
+			fallback = &attrs[i]
+		}
+	}
+	return fallback
+}
+
 // UnmarshalXML Helper function to unmarshal XML into a TValue struct.
 // The tipping point for this function is the switch statement that handles
 // either single or array values.
 // Array values are handled by the decodeArrayOf function, whereas single values
 // are handled by the switch statement that handles the different types.
 func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
-	if len(start.Attr) == 0 {
+	typeAttr := findTypeAttr(start.Attr)
+	if typeAttr == nil {
 		return fmt.Errorf("gopcxmlda: missing xsi:type attribute on <%s> element", start.Name.Local)
 	}
-	split := strings.Split(start.Attr[0].Value, ":")
+	split := strings.Split(typeAttr.Value, ":")
 	if len(split) < 2 {
-		return fmt.Errorf("gopcxmlda: unexpected xsi:type attribute %q on <%s> element", start.Attr[0].Value, start.Name.Local)
+		return fmt.Errorf("gopcxmlda: unexpected xsi:type attribute %q on <%s> element", typeAttr.Value, start.Name.Local)
 	}
 	v.Namespace = split[0]
 	v.Type = split[1]
@@ -105,10 +133,9 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 	var tempSlice []interface{}
 	for {
-		var t xml.Token
-		var err error
-		if t, err = d.Token(); err != nil {
-			break
+		t, err := d.Token()
+		if err != nil {
+			return fmt.Errorf("gopcxmlda: error decoding %s: %w", v.Type, err)
 		}
 
 		switch se := t.(type) {
@@ -225,10 +252,12 @@ func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 			}
 		}
 	}
-	return fmt.Errorf("error in decoding ArrayOf* types")
 }
 
 func valueIsArrayOrSlice(value interface{}) bool {
+	if value == nil {
+		return false
+	}
 	valueType := reflect.TypeOf(value)
 
 	if valueType.Kind() == reflect.Slice || valueType.Kind() == reflect.Array {
@@ -238,22 +267,30 @@ func valueIsArrayOrSlice(value interface{}) bool {
 	}
 }
 
-func setOpcXmlDaTypes(items []TItem) []TItem {
+// setOpcXmlDaTypes infers and fills in the OPC-XML-DA wire type (Value.Type) for
+// every item whose Value.Type isn't already set. It returns an error - rather than
+// silently leaving Value.Type empty - for any item whose Value.Value is nil or of an
+// unsupported Go type, since building a Write/Subscribe payload from such an item
+// would otherwise fail deep inside XML marshalling with a much less useful error (or,
+// prior to this check, panic outright on a nil Value.Value).
+func setOpcXmlDaTypes(items []TItem) ([]TItem, error) {
 	for i := range items {
 		if items[i].Value.Type == "" {
 			// Only set the type if it is not already set
 			item, err := getOpcXmlDaType(items[i].Value.Value)
 			if err != nil {
-				logError(err, "setOpcXmlDaTypes")
-			} else {
-				items[i].Value.Type = item
+				return nil, fmt.Errorf("gopcxmlda: item %d (%q): %w", i, items[i].ItemName, err)
 			}
+			items[i].Value.Type = item
 		}
 	}
-	return items
+	return items, nil
 }
 
 func getOpcXmlDaType(value interface{}) (string, error) {
+	if value == nil {
+		return "", fmt.Errorf("Value.Value must not be nil - set it before calling Write/Subscribe, or set Value.Type explicitly")
+	}
 	var arrayType bool
 	var elemType reflect.Type
 	vo := reflect.ValueOf(value)

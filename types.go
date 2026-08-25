@@ -3,15 +3,22 @@ package gopcxmlda
 import (
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 )
 
 // Server represents a server connection with address, port, locale ID, and timeout.
+//
+// A *Server is safe for concurrent use by multiple goroutines once constructed: the
+// lazy initialization of Client/Timeout on first request is guarded by mu. Do not
+// copy a Server after it has been used (the same rule that applies to sync.Mutex and
+// http.Client).
 type Server struct {
 	Url      *url.URL      // URL of the server
 	LocaleID string        // Locale ID of the server
 	Timeout  time.Duration // Timeout duration for the connection
 	Client   *http.Client  // HTTP client used for requests. Created lazily (using Timeout) if nil, and then reused.
+	mu       sync.Mutex    // guards lazy initialization of Client/Timeout in send()
 }
 
 type TBaseResult struct {
@@ -40,7 +47,13 @@ type TGetStatusResponse struct {
 }
 
 type TStatus struct {
-	ProductVersion             string `xml:"ProductVersion,attr"`
+	ProductVersion string `xml:"ProductVersion,attr"`
+	// StartTime is intentionally a string rather than time.Time: unlike the
+	// ReplyTime/ReceiveTime/Timestamp attributes (which this library controls end
+	// to end), StartTime's exact dateTime format is entirely up to the server
+	// implementation and is not guaranteed to be strict RFC3339. Forcing time.Time
+	// here would silently turn a parseable value into a zero time.Time on any
+	// server whose format doesn't match. Parse it yourself if you need a time.Time.
 	StartTime                  string `xml:"StartTime,attr"`
 	StatusInfo                 string `xml:"StatusInfo"`
 	VendorInfo                 string `xml:"VendorInfo"`
@@ -64,15 +77,28 @@ type TItemList struct {
 	Items []TItem `xml:"Items"`
 }
 
-// TItem represents the structure for an item.
+// TItem represents both a request-side item (Read/Write/Subscribe input) and a
+// response-side item (populated by the server). Which fields are meaningful depends
+// on which direction the TItem travels:
+//
+//   - Read/Write requests use ItemName, ItemPath and Value (Value.Value/Value.Type on
+//     Write; on Read only ItemName/ItemPath need to be set).
+//   - Subscribe requests additionally use RequestedSamplingRate, EnableBuffering and
+//     DeadBand, which have no effect outside of Subscribe.
+//   - Responses (Read/Write/Subscribe/SubscriptionPolledRefresh results) populate
+//     Timestamp, ClientItemHandle, Value, Quality and Error; RequestedSamplingRate,
+//     EnableBuffering and DeadBand are never set by the server and stay zero-valued.
 type TItem struct {
-	Timestamp             time.Time `xml:"Timestamp,attr"`
-	ClientItemHandle      string    `xml:"ClientItemHandle,attr"`
-	ItemName              string    `xml:"ItemName,attr"`
-	Value                 TValue    `xml:"Value"`
-	Quality               TQuality  `xml:"Quality"`
-	ItemPath              string    `xml:"ItemPath,attr"`
-	Error                 string    `xml:"ResultID,attr"`
+	Timestamp        time.Time `xml:"Timestamp,attr"`
+	ClientItemHandle string    `xml:"ClientItemHandle,attr"`
+	ItemName         string    `xml:"ItemName,attr"`
+	Value            TValue    `xml:"Value"`
+	Quality          TQuality  `xml:"Quality"`
+	ItemPath         string    `xml:"ItemPath,attr"`
+	Error            string    `xml:"ResultID,attr"`
+
+	// Request-only fields, used solely by Subscribe(); ignored by Read()/Write() and
+	// never populated on a response.
 	RequestedSamplingRate uint
 	EnableBuffering       bool
 	DeadBand              float64

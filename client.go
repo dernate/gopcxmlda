@@ -8,6 +8,62 @@ import (
 	"fmt"
 )
 
+// resolveRequestHandle defaults namespace to "ns0" and, if ClientRequestHandle points
+// to an empty string, fills it in with a freshly generated one. It returns an error -
+// instead of the caller panicking on a nil dereference - if ClientRequestHandle is
+// nil, which every exported method used to dereference unconditionally.
+func resolveRequestHandle(namespace string, ClientRequestHandle *string) (string, error) {
+	if ClientRequestHandle == nil {
+		return namespace, errors.New("gopcxmlda: ClientRequestHandle must not be nil")
+	}
+	if namespace == "" {
+		namespace = "ns0"
+	}
+	if *ClientRequestHandle == "" {
+		clientRequestHandle, _, err := GenerateClientHandles(0)
+		if err != nil {
+			return namespace, err
+		}
+		*ClientRequestHandle = clientRequestHandle
+	}
+	return namespace, nil
+}
+
+// resolveRequestAndItemHandles is resolveRequestHandle plus generation of
+// ClientItemHandles (one per item) when the caller didn't supply any. It also
+// validates that a caller-supplied ClientItemHandles has exactly one handle per item;
+// a mismatched length would otherwise cause an index-out-of-range panic deep inside
+// payload construction.
+func resolveRequestAndItemHandles(namespace string, ClientRequestHandle *string, ClientItemHandles *[]string,
+	itemCount int) (string, error) {
+	if ClientRequestHandle == nil {
+		return namespace, errors.New("gopcxmlda: ClientRequestHandle must not be nil")
+	}
+	if ClientItemHandles == nil {
+		return namespace, errors.New("gopcxmlda: ClientItemHandles must not be nil")
+	}
+	if namespace == "" {
+		namespace = "ns0"
+	}
+	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
+		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(itemCount)
+		if err != nil {
+			return namespace, err
+		}
+		if *ClientRequestHandle == "" {
+			*ClientRequestHandle = clientRequestHandle
+		}
+		if len(*ClientItemHandles) == 0 {
+			*ClientItemHandles = clientItemHandles
+		}
+	}
+	if len(*ClientItemHandles) != itemCount {
+		return namespace, fmt.Errorf("gopcxmlda: got %d ClientItemHandles for %d items, lengths must match",
+			len(*ClientItemHandles), itemCount)
+	}
+	return namespace, nil
+}
+
 // GenerateClientHandles generates a random ClientRequestHandle and a specified number of ClientItemHandles.
 //
 // Parameters:
@@ -70,16 +126,10 @@ func GenerateClientHandles(count int) (string, []string, error) {
 //					// do something with the response-object TGetStatus
 //				}
 func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, namespace string) (TGetStatus, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "GetStatus")
-			return TGetStatus{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "GetStatus")
+		return TGetStatus{}, err
 	}
 	payload, err := buildGetStatusPayload(s, namespace, ClientRequestHandle)
 	if err != nil {
@@ -128,21 +178,10 @@ func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, nam
 //				}
 func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TRead, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Read")
-			return TRead{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
+	if err != nil {
+		logError(err, "Read")
+		return TRead{}, err
 	}
 	payload, err := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
 	if err != nil {
@@ -181,16 +220,10 @@ func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *s
 //				}
 func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandle *string,
 	namespace string, options TBrowseOptions) (TBrowse, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "Browse")
-			return TBrowse{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "Browse")
+		return TBrowse{}, err
 	}
 	payload, err := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
 	if err != nil {
@@ -244,21 +277,10 @@ func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandl
 //			 }
 func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TWrite, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Write")
-			return TWrite{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
+	if err != nil {
+		logError(err, "Write")
+		return TWrite{}, err
 	}
 	payload, err := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
 	if err != nil {
@@ -304,21 +326,10 @@ func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *
 func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, returnValuesOnReply bool, subscriptionPingRate uint,
 	options map[string]interface{}) (TSubscribe, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Subscribe")
-			return TSubscribe{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
+	if err != nil {
+		logError(err, "Subscribe")
+		return TSubscribe{}, err
 	}
 	payload, err := buildSubscribePayload(namespace, items, ClientRequestHandle, ClientItemHandles,
 		returnValuesOnReply, subscriptionPingRate, options)
@@ -354,16 +365,10 @@ func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHand
 //			    // Handle successful cancellation
 //			}
 func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string, namespace string, ClientRequestHandle *string) (bool, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "SubscriptionCancel")
-			return false, err
-		}
-		*ClientRequestHandle = clientRequestHandle
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "SubscriptionCancel")
+		return false, err
 	}
 	payload, err := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
 	if err != nil {
@@ -403,16 +408,10 @@ func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string,
 //			 }
 func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle string, SubscriptionPingRate uint, namespace string,
 	ClientRequestHandle *string, options map[string]interface{}, ServerTime TServerTime) (TSubscriptionPolledRefresh, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "SubscriptionPolledRefresh")
-			return TSubscriptionPolledRefresh{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "SubscriptionPolledRefresh")
+		return TSubscriptionPolledRefresh{}, err
 	}
 	payload, err := buildSubscriptionPolledRefreshPayload(serverSubHandle, namespace, ClientRequestHandle,
 		SubscriptionPingRate, options, ServerTime)
@@ -423,9 +422,7 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 
 	SPR, errReturn := doRequest[TSubscriptionPolledRefresh](ctx, s, payload, "SubscriptionPolledRefresh")
 	if len(SPR.Response.InvalidServerSubHandles) > 0 {
-		errReturn = errors.Join(errReturn, fmt.Errorf(
-			"InvalidServerSubHandles: %v", SPR.Response.InvalidServerSubHandles,
-		))
+		errReturn = errors.Join(errReturn, &InvalidServerSubHandlesError{Handles: SPR.Response.InvalidServerSubHandles})
 		logError(errReturn, "SubscriptionPolledRefresh")
 	}
 	return SPR, errReturn
@@ -467,18 +464,10 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 //			 }
 func (s *Server) GetProperties(ctx context.Context, items []TItem, PropertyOptions TPropertyOptions,
 	ClientRequestHandle *string, namespace string) (TGetProperties, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "GetProperties")
-			return TGetProperties{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "GetProperties")
+		return TGetProperties{}, err
 	}
 	payload, err := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
 	if err != nil {
