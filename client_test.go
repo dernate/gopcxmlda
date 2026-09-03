@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/url"
 	"os"
-	"os/signal"
-	"syscall"
 	"testing"
 	"time"
 
@@ -22,10 +20,8 @@ func TestGetStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := Server{_url, "en-US", 10 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 	var ClientRequestHandle string
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -45,7 +41,7 @@ func TestRead(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 	items := []TItem{
 		{
 			ItemName: "Loc/Wec/Plant1/P",
@@ -64,8 +60,6 @@ func TestRead(t *testing.T) {
 	}
 	var ClientRequestHandle string
 	var ClientItemHandles []string
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -85,10 +79,8 @@ func TestBrowse(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 	var ClientRequestHandle string
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -111,7 +103,7 @@ func TestWrite(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 	items := []TItem{
 		{
 			ItemName: "Loc/Wec/Plant1/Ctrl/SessionRequest",
@@ -127,8 +119,6 @@ func TestWrite(t *testing.T) {
 		"ReturnItemName":  true,
 		"ReturnItemPath":  true,
 	}
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -148,7 +138,7 @@ func TestSubscribe(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 30 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 30 * time.Second}
 
 	items := []TItem{
 		{
@@ -178,8 +168,6 @@ func TestSubscribe(t *testing.T) {
 		ClientItemHandles = append(ClientItemHandles, item.ItemName)
 	}
 	SubscriptionPingRate := uint(2000)
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -297,7 +285,7 @@ func TestGetProperties(t *testing.T) {
 	}
 	OpcUrl := os.Getenv("OPC_URL")
 	_url, err := url.Parse(OpcUrl)
-	s := Server{_url, "en-US", 10 * time.Second}
+	s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 	var ClientRequestHandle string
 	items := []TItem{
 		{
@@ -312,8 +300,6 @@ func TestGetProperties(t *testing.T) {
 		ReturnPropertyValues: true,
 		ReturnErrorText:      true,
 	}
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()

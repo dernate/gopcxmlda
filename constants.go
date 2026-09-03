@@ -1,6 +1,9 @@
 package gopcxmlda
 
-var HeadersSoap = map[string]string{
+// headersSoap is intentionally unexported: it's an internal wiring detail (HTTP
+// header values per SOAPAction), and being a mutable package-level map, exporting it
+// would let any importer corrupt shared global state for every user of the package.
+var headersSoap = map[string]string{
 	"content-type":                         "application/soap+xml",
 	"SOAPAction-GetStatus":                 "http://opcfoundation.org/webservices/XMLDA/1.0/GetStatus",
 	"SOAPAction-GetProperties":             "http://opcfoundation.org/webservices/XMLDA/1.0/GetProperties",

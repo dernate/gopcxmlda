@@ -4,10 +4,65 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/base64"
-	"encoding/xml"
 	"errors"
 	"fmt"
 )
+
+// resolveRequestHandle defaults namespace to "ns0" and, if ClientRequestHandle points
+// to an empty string, fills it in with a freshly generated one. It returns an error -
+// instead of the caller panicking on a nil dereference - if ClientRequestHandle is
+// nil, which every exported method used to dereference unconditionally.
+func resolveRequestHandle(namespace string, ClientRequestHandle *string) (string, error) {
+	if ClientRequestHandle == nil {
+		return namespace, errors.New("gopcxmlda: ClientRequestHandle must not be nil")
+	}
+	if namespace == "" {
+		namespace = "ns0"
+	}
+	if *ClientRequestHandle == "" {
+		clientRequestHandle, _, err := GenerateClientHandles(0)
+		if err != nil {
+			return namespace, err
+		}
+		*ClientRequestHandle = clientRequestHandle
+	}
+	return namespace, nil
+}
+
+// resolveRequestAndItemHandles is resolveRequestHandle plus generation of
+// ClientItemHandles (one per item) when the caller didn't supply any. It also
+// validates that a caller-supplied ClientItemHandles has exactly one handle per item;
+// a mismatched length would otherwise cause an index-out-of-range panic deep inside
+// payload construction.
+func resolveRequestAndItemHandles(namespace string, ClientRequestHandle *string, ClientItemHandles *[]string,
+	itemCount int) (string, error) {
+	if ClientRequestHandle == nil {
+		return namespace, errors.New("gopcxmlda: ClientRequestHandle must not be nil")
+	}
+	if ClientItemHandles == nil {
+		return namespace, errors.New("gopcxmlda: ClientItemHandles must not be nil")
+	}
+	if namespace == "" {
+		namespace = "ns0"
+	}
+	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
+		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(itemCount)
+		if err != nil {
+			return namespace, err
+		}
+		if *ClientRequestHandle == "" {
+			*ClientRequestHandle = clientRequestHandle
+		}
+		if len(*ClientItemHandles) == 0 {
+			*ClientItemHandles = clientItemHandles
+		}
+	}
+	if len(*ClientItemHandles) != itemCount {
+		return namespace, fmt.Errorf("gopcxmlda: got %d ClientItemHandles for %d items, lengths must match",
+			len(*ClientItemHandles), itemCount)
+	}
+	return namespace, nil
+}
 
 // GenerateClientHandles generates a random ClientRequestHandle and a specified number of ClientItemHandles.
 //
@@ -62,64 +117,26 @@ func GenerateClientHandles(count int) (string, []string, error) {
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //	         var ClientRequestHandle string
-//				response, ClientRequestHandle, err := s.GetStatus(context.Background, &ClientRequestHandle, "")
+//				response, err := s.GetStatus(context.Background(), &ClientRequestHandle, "")
 //				if err != nil {
 //					log.Fatal(err)
 //				} else {
 //					// do something with the response-object TGetStatus
 //				}
 func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, namespace string) (TGetStatus, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "GetStatus")
-			return TGetStatus{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
-	}
-	payload := buildGetStatusPayload(s, namespace, ClientRequestHandle)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "GetStatus")
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "GetStatus")
+		return TGetStatus{}, err
 	}
-
-	var Status TGetStatus
-	if err = xml.Unmarshal(response, &Status); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "GetStatus")
-		}
-		return TGetStatus{}, errReturn
+	payload, err := buildGetStatusPayload(s, namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "GetStatus")
+		return TGetStatus{}, err
 	}
-
-	if Status.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				Status.Fault.FaultCode, Status.Fault.FaultString, Status.Fault.Detail,
-			)),
-		)
-	}
-	if Status.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				Status.Response.Errors.Id, Status.Response.Errors.Text, Status.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "GetStatus")
-	}
-	return Status, errReturn
+	return doRequest[TGetStatus](ctx, s, payload, "GetStatus")
 }
 
 // Read reads items from the specified namespace using the given options.
@@ -141,18 +158,19 @@ func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, nam
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //				items := []TItem{
 //					{
 //						ItemName: "My/Item",
 //					},
 //				}
-//				options := map[string]string{
-//					"ReturnItemTime": "true",
-//					"returnItemPath": "true",
+//				options := map[string]interface{}{
+//					"ReturnItemTime": true,
+//					"returnItemPath": true,
 //				}
 //	         var ClientRequestHandle string
-//				response, err := s.Read(context.Background, items, &ClientRequestHandle, options)
+//	         var ClientItemHandles []string
+//				response, err := s.Read(context.Background(), items, &ClientRequestHandle, &ClientItemHandles, "", options)
 //				if err != nil {
 //					log.Fatal(err)
 //				} else {
@@ -160,61 +178,17 @@ func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, nam
 //				}
 func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TRead, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Read")
-			return TRead{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
-	}
-	payload := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "Read")
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "Read")
+		return TRead{}, err
 	}
-
-	var R TRead
-	if err = xml.Unmarshal(response, &R); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "Read")
-		}
-		return TRead{}, errReturn
+	payload, err := buildReadPayload(s, ClientRequestHandle, ClientItemHandles, namespace, items, options)
+	if err != nil {
+		logError(err, "Read")
+		return TRead{}, err
 	}
-
-	if R.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				R.Fault.FaultCode, R.Fault.FaultString, R.Fault.Detail,
-			)),
-		)
-	}
-	if R.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				R.Response.Errors.Id, R.Response.Errors.Text, R.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "Read")
-	}
-
-	return R, errReturn
+	return doRequest[TRead](ctx, s, payload, "Read")
 }
 
 // Browse sends a browse request to the server and returns the browse response.
@@ -236,9 +210,9 @@ func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *s
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //	         var ClientRequestHandle string
-//				response, err := s.Browse(context.Background, "My/Item", &ClientRequestHandle, TBrowseOptions{})
+//				response, err := s.Browse(context.Background(), "My/Item", &ClientRequestHandle, "", TBrowseOptions{})
 //				if err != nil {
 //					log.Fatal(err)
 //				} else {
@@ -246,56 +220,17 @@ func (s *Server) Read(ctx context.Context, items []TItem, ClientRequestHandle *s
 //				}
 func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandle *string,
 	namespace string, options TBrowseOptions) (TBrowse, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "Browse")
-			return TBrowse{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
-	}
-	payload := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "Browse")
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "Browse")
+		return TBrowse{}, err
 	}
-
-	var B TBrowse
-	if err = xml.Unmarshal(response, &B); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "Browse")
-		}
-		return TBrowse{}, errReturn
+	payload, err := buildBrowsePayload(s, ClientRequestHandle, itemPath, namespace, options)
+	if err != nil {
+		logError(err, "Browse")
+		return TBrowse{}, err
 	}
-
-	if B.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				B.Fault.FaultCode, B.Fault.FaultString, B.Fault.Detail,
-			)),
-		)
-	}
-	if B.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				B.Response.Errors.Id, B.Response.Errors.Text, B.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "Browse")
-	}
-
-	return B, errReturn
+	return doRequest[TBrowse](ctx, s, payload, "Browse")
 }
 
 // Write items to the specified namespace using the given options.
@@ -311,91 +246,48 @@ func (s *Server) Browse(ctx context.Context, itemPath string, ClientRequestHandl
 // - options (map[string]string): The options to use for the request.
 //
 // Returns:
-// - (T_Write): The write result as a T_Write struct.
+// - (TWrite): The write result as a TWrite struct.
 // - (error): An error if any issues occur during the request.
 //
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //			 items := []TItem{
 //				{
 //					ItemName: "My/Item",
-//			 		Value: T_Value{
+//			 		Value: TValue{
 //			 			Value: []int{0, 0, 0},
 //			 		},
 //			 	},
 //				{
 //					ItemName: "My/Item2",
-//			 		Value: T_Value{
+//			 		Value: TValue{
 //			 			Value: 1.234,
 //			 		},
 //			 	},
 //			 }
 //	      var ClientRequestHandle string
-//			 response, err := s.Write(context.Background, items, &ClientRequestHandle, map[string]string{})
+//	      var ClientItemHandles []string
+//			 response, err := s.Write(context.Background(), items, &ClientRequestHandle, &ClientItemHandles, "", map[string]interface{}{})
 //			 if err != nil {
-//				t.Fatal(err)
+//				log.Fatal(err)
 //			 } else {
-//			 	t.Log(response)
+//			 	// do something with the response-object TWrite
 //			 }
 func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, options map[string]interface{}) (TWrite, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Write")
-			return TWrite{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
-	}
-	payload := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "Write")
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "Write")
+		return TWrite{}, err
 	}
-
-	var W TWrite
-	if err = xml.Unmarshal(response, &W); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "Write")
-		}
-		return TWrite{}, errReturn
+	payload, err := buildWritePayload(s, namespace, items, ClientRequestHandle, ClientItemHandles, options)
+	if err != nil {
+		logError(err, "Write")
+		return TWrite{}, err
 	}
-
-	if W.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				W.Fault.FaultCode, W.Fault.FaultString, W.Fault.Detail,
-			)),
-		)
-	}
-	if W.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				W.Response.Errors.Id, W.Response.Errors.Text, W.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "Write")
-	}
-
-	return W, errReturn
+	return doRequest[TWrite](ctx, s, payload, "Write")
 }
 
 // Subscribe subscribes a client to a set of items, enabling the client to receive updates about the items' states.
@@ -408,88 +300,44 @@ func (s *Server) Write(ctx context.Context, items []TItem, ClientRequestHandle *
 // - namespace: A string representing the namespace. Defaults to "ns0" if not provided.
 // - returnValuesOnReply: A boolean indicating whether to return values on reply.
 // - subscriptionPingRate: An unsigned integer representing the subscription ping rate.
-// - enableBuffering: A boolean indicating whether buffering is enabled.
 // - options: A map of additional options for the subscription.
 //
 // Returns:
-// - T_Subscribe: The subscription object.
+// - TSubscribe: The subscription object.
 // - error: An error object if an error occurs.
 //
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //			 items := []TItem{
 //				 {
 //					 ItemName: "My/Item",
 //				 },
 //			 }
 //	  	 var ClientRequestHandle string
-//			 response, err := s.Subscribe(context.Background, items, &ClientRequestHandle, "", "", false, 0, false, map[string]interface{})
+//	  	 var ClientItemHandles []string
+//			 response, err := s.Subscribe(context.Background(), items, &ClientRequestHandle, &ClientItemHandles, "", false, 0, map[string]interface{}{})
 //			 if err != nil {
 //				 log.Fatal(err)
 //			 } else {
-//				 // do something with the response-object T_Subscribe
+//				 // do something with the response-object TSubscribe
 //			 }
 func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHandle *string, ClientItemHandles *[]string,
 	namespace string, returnValuesOnReply bool, subscriptionPingRate uint,
 	options map[string]interface{}) (TSubscribe, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" || len(*ClientItemHandles) == 0 {
-		clientRequestHandle, clientItemHandles, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "Subscribe")
-			return TSubscribe{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-		if len(*ClientItemHandles) == 0 {
-			*ClientItemHandles = clientItemHandles
-		}
-	}
-	payload := buildSubscribePayload(namespace, items, ClientRequestHandle, ClientItemHandles,
-		returnValuesOnReply, subscriptionPingRate, options)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "Subscribe")
+	namespace, err := resolveRequestAndItemHandles(namespace, ClientRequestHandle, ClientItemHandles, len(items))
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "Subscribe")
+		return TSubscribe{}, err
 	}
-
-	var Sub TSubscribe
-	if err = xml.Unmarshal(response, &Sub); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "Subscribe")
-		}
-		return TSubscribe{}, errReturn
+	payload, err := buildSubscribePayload(namespace, items, ClientRequestHandle, ClientItemHandles,
+		returnValuesOnReply, subscriptionPingRate, options)
+	if err != nil {
+		logError(err, "Subscribe")
+		return TSubscribe{}, err
 	}
-
-	if Sub.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				Sub.Fault.FaultCode, Sub.Fault.FaultString, Sub.Fault.Detail,
-			)),
-		)
-	}
-	if Sub.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				Sub.Response.Errors.Id, Sub.Response.Errors.Text, Sub.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "Subscribe")
-	}
-
-	return Sub, errReturn
+	return doRequest[TSubscribe](ctx, s, payload, "Subscribe")
 }
 
 // SubscriptionCancel cancels a subscription on the server.
@@ -507,9 +355,9 @@ func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHand
 // Example:
 //
 //		    _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//	     s := Server{_url, "en-US", 10}
-//	     var clientRequestHandle string
-//			success, err := s.SubscriptionCancel(context.Background, "subHandle123", "ns1", &ClientRequestHandle)
+//	     s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
+//	     var ClientRequestHandle string
+//			success, err := s.SubscriptionCancel(context.Background(), "subHandle123", "ns1", &ClientRequestHandle)
 //			if err != nil {
 //			    // Handle error
 //			}
@@ -517,56 +365,18 @@ func (s *Server) Subscribe(ctx context.Context, items []TItem, ClientRequestHand
 //			    // Handle successful cancellation
 //			}
 func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string, namespace string, ClientRequestHandle *string) (bool, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "SubscriptionCancel")
-			return false, err
-		}
-		*ClientRequestHandle = clientRequestHandle
-	}
-	payload := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "SubscriptionCancel")
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "SubscriptionCancel")
+		return false, err
 	}
-
-	var SC TSubscriptionCancel
-	if err = xml.Unmarshal(response, &SC); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "SubscriptionCancel")
-		}
-		return false, errReturn
+	payload, err := buildSubscriptionCancelPayload(serverSubHandle, namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "SubscriptionCancel")
+		return false, err
 	}
-
-	if SC.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				SC.Fault.FaultCode, SC.Fault.FaultString, SC.Fault.Detail,
-			)),
-		)
-	}
-	if SC.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				SC.Response.Errors.Id, SC.Response.Errors.Text, SC.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "SubscriptionCancel")
-	}
-
-	return true, nil
+	_, errReturn := doRequest[TSubscriptionCancel](ctx, s, payload, "SubscriptionCancel")
+	return errReturn == nil, errReturn
 }
 
 // SubscriptionPolledRefresh is a method of the Server struct that refreshes a subscription
@@ -579,35 +389,29 @@ func (s *Server) SubscriptionCancel(ctx context.Context, serverSubHandle string,
 // - namespace (string): The namespace to be used for the subscription. If empty, defaults to "ns0".
 // - ClientRequestHandle (*string): A pointer to a string representing the client request handle. If empty, a new handle will be generated.
 // - options (map[string]interface{}): A map of additional options for the subscription refresh request.
-// - ServerTime (T_ServerTime): The server time to be used in the request.
+// - ServerTime (TServerTime): The server time to be used in the request.
 //
 // Returns:
-// - T_SubscriptionPolledRefresh: The response from the server containing the refreshed subscription details.
+// - TSubscriptionPolledRefresh: The response from the server containing the refreshed subscription details.
 // - error: An error object if an error occurred during the process.
 //
 // Example:
 //
 //		  _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //	      var ClientRequestHandle string
-//			 response, err := s.SubscriptionPolledRefresh(context.Background, "subHandle123", 1000, "ns1", &ClientRequestHandle, map[string]interface{}{}, T_ServerTime{})
+//			 response, err := s.SubscriptionPolledRefresh(context.Background(), "subHandle123", 1000, "ns1", &ClientRequestHandle, map[string]interface{}{}, TServerTime{})
 //			 if err != nil {
 //				 log.Fatal(err)
 //			 } else {
-//				 // do something with the response-object T_SubscriptionPolledRefresh
+//				 // do something with the response-object TSubscriptionPolledRefresh
 //			 }
 func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle string, SubscriptionPingRate uint, namespace string,
 	ClientRequestHandle *string, options map[string]interface{}, ServerTime TServerTime) (TSubscriptionPolledRefresh, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(0)
-		if err != nil {
-			logError(err, "SubscriptionPolledRefresh")
-			return TSubscriptionPolledRefresh{}, err
-		}
-		*ClientRequestHandle = clientRequestHandle
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
+	if err != nil {
+		logError(err, "SubscriptionPolledRefresh")
+		return TSubscriptionPolledRefresh{}, err
 	}
 	payload, err := buildSubscriptionPolledRefreshPayload(serverSubHandle, namespace, ClientRequestHandle,
 		SubscriptionPingRate, options, ServerTime)
@@ -616,50 +420,11 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 		return TSubscriptionPolledRefresh{}, err
 	}
 
-	var errReturn error
-	response, err := send(ctx, s, payload, "SubscriptionPolledRefresh")
-	if err != nil {
-		errReturn = errors.Join(errReturn, err)
-	}
-
-	var SPR TSubscriptionPolledRefresh
-	if err = xml.Unmarshal(response, &SPR); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "SubscriptionPolledRefresh")
-		}
-		return TSubscriptionPolledRefresh{}, errReturn
-	}
-
-	if SPR.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				SPR.Fault.FaultCode, SPR.Fault.FaultString, SPR.Fault.Detail,
-			)),
-		)
-	}
-	if SPR.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				SPR.Response.Errors.Id, SPR.Response.Errors.Text, SPR.Response.Errors.Type,
-			)),
-		)
-	}
+	SPR, errReturn := doRequest[TSubscriptionPolledRefresh](ctx, s, payload, "SubscriptionPolledRefresh")
 	if len(SPR.Response.InvalidServerSubHandles) > 0 {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"InvalidServerSubHandles: %v",
-				SPR.Response.InvalidServerSubHandles,
-			)),
-		)
-	}
-
-	if errReturn != nil {
+		errReturn = errors.Join(errReturn, &InvalidServerSubHandlesError{Handles: SPR.Response.InvalidServerSubHandles})
 		logError(errReturn, "SubscriptionPolledRefresh")
 	}
-
 	return SPR, errReturn
 }
 
@@ -679,7 +444,7 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 // Example:
 //
 //		     _url, _ := url.Parse("http://opc-addr-or-IP.local:8080")
-//			 s := Server{_url, "en-US", 10}
+//			 s := Server{Url: _url, LocaleID: "en-US", Timeout: 10 * time.Second}
 //			 items := []TItem{
 //				 {
 //					 ItemName: "My/Item",
@@ -691,7 +456,7 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 //				ReturnErrorText:      true,
 //			 }
 //	      var ClientRequestHandle string
-//			 response, err := s.GetProperties(context.Background, items, propertyOptions, &ClientRequestHandle, "")
+//			 response, err := s.GetProperties(context.Background(), items, propertyOptions, &ClientRequestHandle, "")
 //			 if err != nil {
 //				 log.Fatal(err)
 //			 } else {
@@ -699,56 +464,15 @@ func (s *Server) SubscriptionPolledRefresh(ctx context.Context, serverSubHandle 
 //			 }
 func (s *Server) GetProperties(ctx context.Context, items []TItem, PropertyOptions TPropertyOptions,
 	ClientRequestHandle *string, namespace string) (TGetProperties, error) {
-	if namespace == "" {
-		namespace = "ns0"
-	}
-	if *ClientRequestHandle == "" {
-		clientRequestHandle, _, err := GenerateClientHandles(len(items))
-		if err != nil {
-			logError(err, "GetProperties")
-			return TGetProperties{}, err
-		}
-		if *ClientRequestHandle == "" {
-			*ClientRequestHandle = clientRequestHandle
-		}
-	}
-	payload := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
-
-	var errReturn error
-	response, err := send(ctx, s, payload, "GetProperties")
+	namespace, err := resolveRequestHandle(namespace, ClientRequestHandle)
 	if err != nil {
-		errReturn = errors.Join(errReturn, err)
+		logError(err, "GetProperties")
+		return TGetProperties{}, err
 	}
-
-	var P TGetProperties
-	if err = xml.Unmarshal(response, &P); err != nil {
-		errReturn = errors.Join(errReturn, err)
-		if errReturn != nil {
-			logError(errReturn, "GetProperties")
-		}
-		return TGetProperties{}, errReturn
+	payload, err := buildGetPropertiesPayload(s, ClientRequestHandle, namespace, items, PropertyOptions)
+	if err != nil {
+		logError(err, "GetProperties")
+		return TGetProperties{}, err
 	}
-
-	if P.Fault.FaultCode != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Faultcode: %s, Faultstring: %s, Detail: %s",
-				P.Fault.FaultCode, P.Fault.FaultString, P.Fault.Detail,
-			)),
-		)
-	}
-	if P.Response.Errors.Id != "" {
-		errReturn = errors.Join(errReturn,
-			errors.New(fmt.Sprintf(
-				"Id: %s, Text: %s, Type: %s",
-				P.Response.Errors.Id, P.Response.Errors.Text, P.Response.Errors.Type,
-			)),
-		)
-	}
-
-	if errReturn != nil {
-		logError(errReturn, "GetProperties")
-	}
-
-	return P, errReturn
+	return doRequest[TGetProperties](ctx, s, payload, "GetProperties")
 }

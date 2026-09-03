@@ -21,15 +21,18 @@ Basic usage is as follows:
 ```go
 package main
 import (
+    "net/url"
+    "time"
+
     "github.com/dernate/gopcxmlda"
 )
 
 func main() {
-	_url, _ := url.Parse("http://your.opc-xml-da.server"),
-	s := Server{
-		_url,
-		"en-US", 
-		10,
+	_url, _ := url.Parse("http://your.opc-xml-da.server")
+	s := gopcxmlda.Server{
+		Url:      _url,
+		LocaleID: "en-US",
+		Timeout:  10 * time.Second,
 	}
 }
 ```
