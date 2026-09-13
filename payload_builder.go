@@ -94,15 +94,24 @@ func buildGetStatusPayload(s *Server, namespace string, ClientRequestHandle *str
 	return marshalPayload(namespace, body)
 }
 
+// xmlReadItem renders a ReadRequestItem. MaxAge is a *int rather than an int because 0
+// is a meaningful value for this attribute (it requests a device read), so it must be
+// distinguishable from "not set" - which `omitempty` on a plain int could not do, as it
+// would drop exactly that value.
 type xmlReadItem struct {
 	XMLName          xml.Name
 	ItemName         string `xml:"ItemName,attr,omitempty"`
 	ItemPath         string `xml:"ItemPath,attr,omitempty"`
 	ClientItemHandle string `xml:"ClientItemHandle,attr"`
+	MaxAge           *int   `xml:"MaxAge,attr,omitempty"`
 }
 
+// xmlItemList renders a ReadRequestItemList. Its MaxAge is the list-level default that
+// applies to every item without a MaxAge of its own; see xmlReadItem on why it is a
+// pointer.
 type xmlItemList struct {
 	XMLName xml.Name
+	MaxAge  *int `xml:"MaxAge,attr,omitempty"`
 	Items   []xmlReadItem
 }
 
@@ -119,13 +128,23 @@ func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles 
 	if err := checkHandleCount(len(items), *ClientItemHandles); err != nil {
 		return "", err
 	}
+	// MaxAge belongs on the item list, not in <Options>, so it is taken out of the
+	// options map before the rest is rendered as RequestOptions attributes.
+	listMaxAge, options, err := splitMaxAgeOption(options)
+	if err != nil {
+		return "", err
+	}
 	readItems := make([]xmlReadItem, len(items))
 	for i, item := range items {
+		if err := validateMaxAge(item.MaxAge, fmt.Sprintf("item %q", item.ItemName)); err != nil {
+			return "", err
+		}
 		readItems[i] = xmlReadItem{
 			XMLName:          xml.Name{Local: namespace + ":Items"},
 			ItemName:         item.ItemName,
 			ItemPath:         item.ItemPath,
 			ClientItemHandle: (*ClientItemHandles)[i],
+			MaxAge:           copyMaxAge(item.MaxAge),
 		}
 	}
 
@@ -136,6 +155,7 @@ func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles 
 		Options:             newXmlOptions(namespace, "Options", options),
 		ItemList: xmlItemList{
 			XMLName: xml.Name{Local: namespace + ":ItemList"},
+			MaxAge:  listMaxAge,
 			Items:   readItems,
 		},
 	}

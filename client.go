@@ -151,6 +151,16 @@ func (s *Server) GetStatus(ctx context.Context, ClientRequestHandle *string, nam
 // - namespace (string): The namespace to use for the request.
 // - options (map[string]string): The options to use for the request.
 //
+// Data freshness (MaxAge):
+//
+// A server may answer a Read from its cache. MaxAge is the specified way to bound how
+// stale that value is allowed to be: it is the maximum age in milliseconds, and a
+// MaxAge of 0 asks the server for the most accurate data available (a device read).
+// Set it per item via TItem.MaxAge (see MaxAgeMillis / MaxAgeDevice), or for the whole
+// item list via the MaxAgeOption ("MaxAge") key of the options map; an item's own value
+// overrides the list-level one. Omitting it at both levels means the same as 0 per the
+// specification, but leaves it to the server to actually implement that default.
+//
 // Returns:
 // - (TRead): The read result as a TRead struct.
 // - (error): An error if any issues occur during the request.

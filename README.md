@@ -69,6 +69,37 @@ var ClientItemHandles []string
 readResponse, err := s.Read(context.Background(), items, ClientRequestHandle, ClientItemHandles, "ns1", options)
 ```
 
+#### Data freshness (MaxAge)
+A server may answer a `Read` from its cache. `MaxAge` is the mechanism the specification
+provides to bound how stale that value may be: a maximum age in milliseconds, where `0`
+requests the most accurate data available (a device read).
+
+Set it per item, or for the whole item list via the `"MaxAge"` option key. An item's own
+value overrides the list-level one:
+
+```go
+items := []TItem{
+    {
+        ItemName: "my/OPC/path",
+        MaxAge:   gopcxmlda.MaxAgeDevice(), // never accept a cached value
+    },
+    {
+        ItemName: "my/OPC/path2",
+        MaxAge:   gopcxmlda.MaxAgeMillis(500), // a cached value up to 500 ms old is fine
+    },
+    {
+        ItemName: "my/OPC/path3", // no MaxAge: falls back to the list-level value below
+    },
+}
+options := map[string]interface{}{
+    "ReturnItemTime": true,
+    "MaxAge":         1000,
+}
+```
+
+Omitting `MaxAge` at both levels means the same as `0` per the specification, but leaves
+it to the server to actually implement that default.
+
 ### Write
 ```go
 items := []TItem{
