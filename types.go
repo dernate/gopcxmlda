@@ -83,11 +83,13 @@ type TItemList struct {
 //
 //   - Read/Write requests use ItemName, ItemPath and Value (Value.Value/Value.Type on
 //     Write; on Read only ItemName/ItemPath need to be set).
+//   - Read requests additionally use MaxAge, which has no effect outside of Read.
 //   - Subscribe requests additionally use RequestedSamplingRate, EnableBuffering and
 //     DeadBand, which have no effect outside of Subscribe.
 //   - Responses (Read/Write/Subscribe/SubscriptionPolledRefresh results) populate
-//     Timestamp, ClientItemHandle, Value, Quality and Error; RequestedSamplingRate,
-//     EnableBuffering and DeadBand are never set by the server and stay zero-valued.
+//     Timestamp, ClientItemHandle, Value, Quality and Error; MaxAge,
+//     RequestedSamplingRate, EnableBuffering and DeadBand are never set by the server
+//     and stay zero-valued.
 type TItem struct {
 	Timestamp        time.Time `xml:"Timestamp,attr"`
 	ClientItemHandle string    `xml:"ClientItemHandle,attr"`
@@ -102,6 +104,23 @@ type TItem struct {
 	RequestedSamplingRate uint
 	EnableBuffering       bool
 	DeadBand              float64
+
+	// MaxAge is a request-only field, used solely by Read(); it is ignored by
+	// Write()/Subscribe()/GetProperties() and never populated on a response. It maps to
+	// the MaxAge attribute of the OPC-XML-DA ReadRequestItem: the maximum age, in
+	// milliseconds, that a value from the server's cache may have before the server has
+	// to obtain a fresh value from the underlying device.
+	//
+	// A nil MaxAge omits the attribute for this item, which lets the list-level MaxAge
+	// (the "MaxAge" key of Read's options map) apply. A non-nil MaxAge overrides the
+	// list level for this item. Per the specification a MaxAge of 0 - and, when omitted
+	// at every level of the hierarchy, no MaxAge at all - requests the most accurate
+	// data available, i.e. a device read; sending 0 explicitly states that intent
+	// instead of relying on the server to implement the default that way. Valid values
+	// are 0 to math.MaxInt32 (the attribute is an xs:int); Read rejects anything else.
+	//
+	// Use MaxAgeMillis or MaxAgeDevice to construct the pointer.
+	MaxAge *int
 }
 
 // TValue represents the structure for the value of an item.
