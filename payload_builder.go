@@ -115,12 +115,14 @@ type xmlItemList struct {
 	Items   []xmlReadItem
 }
 
+// xmlReadRequest renders a Read request. Per the specification's WSDL, the <Read>
+// element itself carries no attributes at all - only an Options and an ItemList child
+// element - so LocaleID and ClientRequestHandle have to be merged into Options
+// (RequestOptions has both) rather than set directly on <Read>.
 type xmlReadRequest struct {
-	XMLName             xml.Name
-	LocaleID            string `xml:"LocaleID,attr"`
-	ClientRequestHandle string `xml:"ClientRequestHandle,attr"`
-	Options             *xmlOptions
-	ItemList            xmlItemList
+	XMLName  xml.Name
+	Options  *xmlOptions
+	ItemList xmlItemList
 }
 
 func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles *[]string, namespace string,
@@ -148,11 +150,16 @@ func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles 
 		}
 	}
 
+	// ClientRequestHandle/LocaleID are options of the Read request itself; merge them
+	// into a copy so the caller-supplied options map is never mutated as a side effect.
+	mergedOpts := mergeOptions(options, map[string]interface{}{
+		"ClientRequestHandle": *ClientRequestHandle,
+		"LocaleID":            s.LocaleID,
+	})
+
 	body := xmlReadRequest{
-		XMLName:             xml.Name{Local: namespace + ":Read"},
-		LocaleID:            s.LocaleID,
-		ClientRequestHandle: *ClientRequestHandle,
-		Options:             newXmlOptions(namespace, "Options", options),
+		XMLName: xml.Name{Local: namespace + ":Read"},
+		Options: newXmlOptions(namespace, "Options", mergedOpts),
 		ItemList: xmlItemList{
 			XMLName: xml.Name{Local: namespace + ":ItemList"},
 			MaxAge:  listMaxAge,
@@ -318,11 +325,14 @@ type xmlSubscribeItemList struct {
 	Items    []xmlSubscribeItem
 }
 
+// xmlSubscribeRequest renders a Subscribe request. Per the specification's WSDL, the
+// <Subscribe> element's own attributes are only ReturnValuesOnReply and
+// SubscriptionPingRate - ClientRequestHandle is not among them and has to be merged
+// into Options (RequestOptions has it) instead of set directly on <Subscribe>.
 type xmlSubscribeRequest struct {
 	XMLName              xml.Name
-	ReturnValuesOnReply  bool   `xml:"ReturnValuesOnReply,attr"`
-	SubscriptionPingRate uint   `xml:"SubscriptionPingRate,attr"`
-	ClientRequestHandle  string `xml:"ClientRequestHandle,attr"`
+	ReturnValuesOnReply  bool `xml:"ReturnValuesOnReply,attr"`
+	SubscriptionPingRate uint `xml:"SubscriptionPingRate,attr"`
 	Options              *xmlOptions
 	ItemList             xmlSubscribeItemList
 }
@@ -349,12 +359,17 @@ func buildSubscribePayload(namespace string, items []TItem, ClientRequestHandle 
 		}
 	}
 
+	// ClientRequestHandle is an option of the Subscribe request itself; merge it into a
+	// copy so the caller-supplied options map is never mutated as a side effect.
+	mergedOpts := mergeOptions(options, map[string]interface{}{
+		"ClientRequestHandle": *ClientRequestHandle,
+	})
+
 	body := xmlSubscribeRequest{
 		XMLName:              xml.Name{Local: namespace + ":Subscribe"},
 		ReturnValuesOnReply:  returnValuesOnReply,
 		SubscriptionPingRate: subscriptionPingRate,
-		ClientRequestHandle:  *ClientRequestHandle,
-		Options:              newXmlOptions(namespace, "Options", options),
+		Options:              newXmlOptions(namespace, "Options", mergedOpts),
 		ItemList: xmlSubscribeItemList{
 			XMLName:  xml.Name{Local: namespace + ":ItemList"},
 			Type:     "SubscribeRequestItemList",

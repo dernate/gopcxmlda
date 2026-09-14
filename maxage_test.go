@@ -92,8 +92,10 @@ func TestBuildReadPayloadRendersListMaxAgeOnItemList(t *testing.T) {
 
 // TestBuildReadPayloadListMaxAgeOnlyDoesNotEmitOptions checks that a MaxAge-only
 // options map doesn't produce an empty <Options/> element, matching the behavior for a
-// map that was empty to begin with.
-func TestBuildReadPayloadListMaxAgeOnlyDoesNotEmitOptions(t *testing.T) {
+// map that was empty to begin with (Options is still emitted, since Read always
+// merges ClientRequestHandle/LocaleID into it - MaxAgeOption alone must not add a
+// spurious "MaxAge" attribute there too, on top of the ItemList one).
+func TestBuildReadPayloadListMaxAgeOnlyAddsNoOtherOptionsAttribute(t *testing.T) {
 	crh := "crh1"
 	handles := []string{"h0"}
 	items := []TItem{{ItemName: "Item1"}}
@@ -102,8 +104,10 @@ func TestBuildReadPayloadListMaxAgeOnlyDoesNotEmitOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(payload, "ns1:Options") {
-		t.Fatalf("expected no Options element for a MaxAge-only options map, got: %s", payload)
+	optionsElement := payload[strings.Index(payload, "<ns1:Options"):]
+	optionsElement = optionsElement[:strings.Index(optionsElement, ">")]
+	if strings.Contains(optionsElement, "MaxAge") {
+		t.Fatalf("expected MaxAge not to be rendered as an Options attribute, got: %s", optionsElement)
 	}
 	if !strings.Contains(payload, `<ns1:ItemList MaxAge="250">`) {
 		t.Fatalf("expected MaxAge=\"250\" on the ItemList element, got: %s", payload)
