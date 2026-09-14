@@ -43,8 +43,14 @@ func TestBuildReadPayloadEscapesItemNameAndOmitsEmptyPath(t *testing.T) {
 	if strings.Contains(payload, "ItemPath=") {
 		t.Fatalf("expected ItemPath attribute to be omitted when empty, got: %s", payload)
 	}
-	if strings.Contains(payload, "ns1:Options") {
-		t.Fatalf("expected no Options element when no options given, got: %s", payload)
+	// ClientRequestHandle/LocaleID must end up in Options, not on <ns1:Read> itself:
+	// per the specification's WSDL, <Read> carries no attributes of its own at all.
+	if !strings.Contains(payload, `ClientRequestHandle="crh1"`) || !strings.Contains(payload, `LocaleID="en-US"`) {
+		t.Fatalf("expected ClientRequestHandle/LocaleID in Options, got: %s", payload)
+	}
+	readElement := payload[strings.Index(payload, "<ns1:Read"):strings.Index(payload, "<ns1:Options")]
+	if strings.Contains(readElement, "ClientRequestHandle") || strings.Contains(readElement, "LocaleID") {
+		t.Fatalf("expected no attributes directly on <ns1:Read>, got: %s", readElement)
 	}
 }
 
@@ -57,8 +63,11 @@ func TestBuildReadPayloadRendersOptions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(payload, `<ns1:Options ReturnItemTime="true"`) {
+	if !strings.Contains(payload, `ReturnItemTime="true"`) {
 		t.Fatalf("expected rendered Options element, got: %s", payload)
+	}
+	if !strings.Contains(payload, `ClientRequestHandle="crh1"`) || !strings.Contains(payload, `LocaleID="en-US"`) {
+		t.Fatalf("expected ClientRequestHandle/LocaleID merged into Options, got: %s", payload)
 	}
 }
 
@@ -135,6 +144,27 @@ func TestBuildSubscribePayloadPreservesDeadBandFraction(t *testing.T) {
 	}
 	if !strings.Contains(payload, `Deadband="2.5"`) {
 		t.Fatalf("expected Deadband=\"2.5\" to survive formatting, got: %s", payload)
+	}
+}
+
+// TestBuildSubscribePayloadRendersClientRequestHandleInOptions pins down that
+// ClientRequestHandle ends up in Options, not on <ns1:Subscribe> itself: per the
+// specification's WSDL, <Subscribe>'s own attributes are only ReturnValuesOnReply and
+// SubscriptionPingRate.
+func TestBuildSubscribePayloadRendersClientRequestHandleInOptions(t *testing.T) {
+	crh := "crh1"
+	handles := []string{"h0"}
+	items := []TItem{{ItemName: "Item1"}}
+	payload, err := buildSubscribePayload("ns1", items, &crh, &handles, false, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload, `<ns1:Options ClientRequestHandle="crh1">`) {
+		t.Fatalf("expected ClientRequestHandle in Options, got: %s", payload)
+	}
+	subscribeElement := payload[strings.Index(payload, "<ns1:Subscribe"):strings.Index(payload, "<ns1:Options")]
+	if strings.Contains(subscribeElement, "ClientRequestHandle") {
+		t.Fatalf("expected no ClientRequestHandle attribute directly on <ns1:Subscribe>, got: %s", subscribeElement)
 	}
 }
 

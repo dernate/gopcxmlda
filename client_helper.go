@@ -111,6 +111,15 @@ func doRequest[T soapResponse](ctx context.Context, s *Server, payload string, a
 		errReturn = sendErr
 	}
 
+	// Deliberately fail-fast, not best-effort: if any single item in the response is
+	// malformed (e.g. a <Value> without xsi:type - see TValue.UnmarshalXML), the whole
+	// batch is discarded rather than returning zero as a control-decision on a partial,
+	// silently-degraded result. xml.Unmarshal itself does fill in whatever it managed
+	// to parse before hitting the error, but that partial `result` is intentionally not
+	// returned here - `zero` is, every time. Keep it that way: for a control library, a
+	// response that is wrong in one place is not "mostly trustworthy", and a caller who
+	// got back an incomplete item list without an error would have no way to tell it
+	// apart from a complete one.
 	if err := xml.Unmarshal(response, &result); err != nil {
 		errReturn = errors.Join(errReturn, err)
 		logError(errReturn, action)
