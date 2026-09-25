@@ -189,9 +189,9 @@ func TestWriteValueRoundTrip(t *testing.T) {
 		{"text & <markup>", "text & <markup>"},
 		{float32(1.5), float32(1.5)},
 		{2.25, 2.25},
-		// A scalar time.Time is left out on purpose: Write currently renders it with
-		// fmt's %v ("2026-09-25 15:38:06 +0000 UTC") instead of as an xsd:dateTime, so it
-		// can't round-trip. Arrays of time.Time are rendered correctly (see below).
+		{ts, ts},
+		{time.Date(2026, 9, 25, 15, 38, 6, 123456789, time.FixedZone("CEST", 2*3600)),
+			time.Date(2026, 9, 25, 13, 38, 6, 123456789, time.UTC)},
 		{int8(-5), int16(-5)},
 		{uint8(5), uint16(5)},
 		{int16(-300), int16(-300)},
@@ -214,6 +214,8 @@ func TestWriteValueRoundTrip(t *testing.T) {
 		{[]uint64{1}, []interface{}{uint64(1)}},
 		{[]int{1, 2, 3}, []interface{}{1, 2, 3}},
 		{[]uint{1}, []interface{}{uint(1)}},
+		// base64Binary is decoded as its base64 text, not back into a []byte.
+		{[]byte{1, 2, 3}, "AQID"},
 	}
 	valueElement := regexp.MustCompile(`<ns1:Value .*?</ns1:Value>`)
 	for _, tc := range cases {

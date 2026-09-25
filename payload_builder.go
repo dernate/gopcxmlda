@@ -1,8 +1,10 @@
 package gopcxmlda
 
 import (
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -217,12 +219,13 @@ type xmlWriteValue struct {
 
 func (v xmlWriteValue) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 	start.Name = v.XMLName
-	start.Attr = []xml.Attr{{Name: xml.Name{Local: "xsi:type"}, Value: fmt.Sprintf("%s:%s", v.Namespace, v.Type)}}
+	start.Attr = []xml.Attr{{Name: xml.Name{Local: "xsi:type"}, Value: writeTypeQName(v.Namespace, v.Type)}}
 	if err := e.EncodeToken(start); err != nil {
 		return err
 	}
 
-	if valueIsArrayOrSlice(v.Value) {
+	_, isBytes := v.Value.([]byte)
+	if valueIsArrayOrSlice(v.Value) && !(isBytes && v.Type == "base64Binary") {
 		rv := reflect.ValueOf(v.Value)
 		for i := 0; i < rv.Len(); i++ {
 			elem := rv.Index(i).Interface()
@@ -230,16 +233,61 @@ func (v xmlWriteValue) MarshalXML(e *xml.Encoder, start xml.StartElement) error 
 			if err != nil {
 				return err
 			}
+			// Array elements are named after their type in the OPC XML-DA namespace,
+			// e.g. <ns0:int> inside an ns0:ArrayOfInt.
 			elemStart := xml.StartElement{Name: xml.Name{Local: fmt.Sprintf("%s:%s", v.Namespace, elemType)}}
-			if err := e.EncodeElement(elem, elemStart); err != nil {
+			if err := e.EncodeElement(xml.CharData(formatXsdScalar(elem)), elemStart); err != nil {
 				return err
 			}
 		}
-	} else if err := e.EncodeToken(xml.CharData(fmt.Sprintf("%v", v.Value))); err != nil {
+	} else if err := e.EncodeToken(xml.CharData(formatXsdScalar(v.Value))); err != nil {
 		return err
 	}
 
 	return e.EncodeToken(start.End())
+}
+
+// writeTypeQName returns the xsi:type of a written value. Only the ArrayOf* types are
+// defined in the OPC XML-DA namespace; scalar values are XML Schema built-in types and
+// have to be qualified with the xsd prefix declared on the envelope - "ns0:int" would
+// name a type that doesn't exist in the OPC XML-DA schema.
+func writeTypeQName(namespace, typ string) string {
+	if strings.HasPrefix(typ, "ArrayOf") {
+		return namespace + ":" + typ
+	}
+	return "xsd:" + typ
+}
+
+// formatXsdScalar renders a single value in the lexical form of its XML Schema type.
+// fmt's %v is right for most types but not for these: time.Time would come out as
+// "2006-01-02 15:04:05 +0000 UTC" instead of an xsd:dateTime, infinities as "+Inf"
+// instead of "INF", and a []byte (base64Binary) as a list of numbers.
+func formatXsdScalar(value interface{}) string {
+	switch v := value.(type) {
+	case time.Time:
+		return v.Format(time.RFC3339Nano)
+	case float32:
+		return formatXsdFloat(float64(v), 32)
+	case float64:
+		return formatXsdFloat(v, 64)
+	case []byte:
+		return base64.StdEncoding.EncodeToString(v)
+	default:
+		return fmt.Sprintf("%v", value)
+	}
+}
+
+func formatXsdFloat(f float64, bitSize int) string {
+	switch {
+	case math.IsNaN(f):
+		return "NaN"
+	case math.IsInf(f, 1):
+		return "INF"
+	case math.IsInf(f, -1):
+		return "-INF"
+	default:
+		return strconv.FormatFloat(f, 'g', -1, bitSize)
+	}
 }
 
 type xmlWriteItem struct {

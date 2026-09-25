@@ -291,6 +291,11 @@ func getOpcXmlDaType(value interface{}) (string, error) {
 	if value == nil {
 		return "", fmt.Errorf("Value.Value must not be nil - set it before calling Write/Subscribe, or set Value.Type explicitly")
 	}
+	// A []byte is sent as a single base64Binary value: the specification explicitly
+	// excludes ArrayOfUnsignedByte, as base64 is the more efficient encoding for bytes.
+	if _, ok := value.([]byte); ok {
+		return "base64Binary", nil
+	}
 	var arrayType bool
 	var elemType reflect.Type
 	vo := reflect.ValueOf(value)
