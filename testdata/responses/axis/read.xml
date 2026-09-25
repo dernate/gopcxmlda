@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<ReadResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<ReadResult ClientRequestHandle="crh1" RcvTime="2026-09-25T15:38:10.084Z" ReplyTime="2026-09-25T15:38:10.084Z" RevisedLocaleID="en" ServerState="running"/>
+<RItemList>
+<Items ClientItemHandle="h0" ItemName="Plant/Power" Timestamp="2026-09-25T15:38:09.000Z">
+<Value xsi:type="xsd:double">1234.5</Value>
+<Quality QualityField="good"/>
+</Items>
+<Items ClientItemHandle="h1" ItemName="Plant/Missing" ResultID="ns1:E_INVALIDITEMPATH" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+<Items ClientItemHandle="h2" ItemName="Plant/AlsoMissing" ResultID="ns2:E_INVALIDITEMPATH" xmlns:ns2="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+</RItemList>
+<Errors ID="ns3:E_INVALIDITEMPATH" xmlns:ns3="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<Text>Invalid node</Text>
+</Errors>
+</ReadResponse>
+</soapenv:Body>
+</soapenv:Envelope>

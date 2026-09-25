@@ -2,9 +2,11 @@ package gopcxmlda
 
 import (
 	"encoding/xml"
+	"math"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testServer() *Server {
@@ -193,5 +195,86 @@ func TestBuildSubscriptionCancelPayloadUsesNamespacePrefix(t *testing.T) {
 	}
 	if !strings.Contains(payload, "<ns1:SubscriptionCancel ") || !strings.Contains(payload, "</ns1:SubscriptionCancel>") {
 		t.Fatalf("expected ns1:SubscriptionCancel element, got: %s", payload)
+	}
+}
+
+// TestBuildWritePayloadTypeQNames pins down that scalar values are typed with the
+// XML Schema prefix (xsd:int) and only arrays with the OPC XML-DA namespace
+// (ns1:ArrayOfInt): the OPC XML-DA schema defines no scalar types of its own.
+func TestBuildWritePayloadTypeQNames(t *testing.T) {
+	cases := []struct {
+		value interface{}
+		want  string
+	}{
+		{42, `xsi:type="xsd:int"`},
+		{"text", `xsi:type="xsd:string"`},
+		{true, `xsi:type="xsd:boolean"`},
+		{2.5, `xsi:type="xsd:double"`},
+		{time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC), `xsi:type="xsd:dateTime"`},
+		{[]byte{1}, `xsi:type="xsd:base64Binary"`},
+		{[]int{1}, `xsi:type="ns1:ArrayOfInt"`},
+		{[]string{"a"}, `xsi:type="ns1:ArrayOfString"`},
+	}
+	for _, tc := range cases {
+		crh, handles := "crh1", []string{"h0"}
+		payload, err := buildWritePayload(testServer(), "ns1", []TItem{{ItemName: "Item1", Value: TValue{Value: tc.value}}},
+			&crh, &handles, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(payload, tc.want) {
+			t.Errorf("%T: expected %s, got: %s", tc.value, tc.want, payload)
+		}
+	}
+}
+
+// TestBuildWritePayloadLexicalForms pins down the XML Schema lexical form of values
+// whose Go formatting differs from it.
+func TestBuildWritePayloadLexicalForms(t *testing.T) {
+	cases := []struct {
+		value interface{}
+		want  string
+	}{
+		{time.Date(2026, 9, 25, 15, 38, 6, 500000000, time.UTC), `>2026-09-25T15:38:06.5Z<`},
+		{math.Inf(1), `>INF<`},
+		{math.Inf(-1), `>-INF<`},
+		{float32(math.Inf(1)), `>INF<`},
+		{math.NaN(), `>NaN<`},
+		{[]byte{1, 2, 3}, `>AQID<`},
+		{[]float64{math.Inf(1), 1.5}, `<ns1:double>INF</ns1:double><ns1:double>1.5</ns1:double>`},
+		{[]time.Time{time.Date(2026, 9, 25, 15, 38, 6, 0, time.UTC)}, `<ns1:dateTime>2026-09-25T15:38:06Z</ns1:dateTime>`},
+	}
+	for _, tc := range cases {
+		crh, handles := "crh1", []string{"h0"}
+		payload, err := buildWritePayload(testServer(), "ns1", []TItem{{ItemName: "Item1", Value: TValue{Value: tc.value}}},
+			&crh, &handles, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(payload, tc.want) {
+			t.Errorf("%#v: expected %s in: %s", tc.value, tc.want, payload)
+		}
+	}
+}
+
+// TestBuildBrowsePayloadOmitsEmptyBrowseFilter pins down that an unset BrowseFilter is
+// left out rather than sent as BrowseFilter="": the attribute is an enumeration
+// (all/branch/item, default all) and a Java/Axis server rejected every Browse with
+// HTTP 500 over the empty value.
+func TestBuildBrowsePayloadOmitsEmptyBrowseFilter(t *testing.T) {
+	crh := "crh1"
+	payload, err := buildBrowsePayload(testServer(), &crh, "", "ns1", TBrowseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(payload, "BrowseFilter") {
+		t.Fatalf("expected no BrowseFilter attribute when unset, got: %s", payload)
+	}
+	payload, err = buildBrowsePayload(testServer(), &crh, "", "ns1", TBrowseOptions{BrowseFilter: "item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload, `BrowseFilter="item"`) {
+		t.Fatalf("expected BrowseFilter=\"item\", got: %s", payload)
 	}
 }

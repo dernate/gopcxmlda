@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<GetStatusResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<GetStatusResult ClientRequestHandle="crh1" RcvTime="2026-09-25T15:38:10.084Z" ReplyTime="2026-09-25T15:38:10.084Z" RevisedLocaleID="en" ServerState="running"/>
+<Status ProductVersion="1.3.17" StartTime="2026-08-04T06:35:57.157Z">
+<StatusInfo>Server is open for communication</StatusInfo>
+<VendorInfo>Example OPC XML-DA Gateway</VendorInfo>
+<SupportedLocaleIDs>en</SupportedLocaleIDs>
+<SupportedInterfaceVersions>XML_DA_Version_1_0</SupportedInterfaceVersions>
+</Status>
+</GetStatusResponse>
+</soapenv:Body>
+</soapenv:Envelope>

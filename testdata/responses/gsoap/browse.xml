@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/" xmlns:ns2="Service">
+<SOAP-ENV:Header></SOAP-ENV:Header>
+<SOAP-ENV:Body id="_0">
+<BrowseResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/" MoreElements="true" ContinuationPoint="191577240">
+<BrowseResult xsi:type="ns1:ReplyBase" ServerState="running" RevisedLocaleID="en-us" ReplyTime="2026-09-25T17:51:00.376+00:00" RcvTime="2026-09-25T17:51:00.370+00:00" ClientRequestHandle="crh1"></BrowseResult>
+<Elements xsi:type="ns1:BrowseElement" HasChildren="false" IsItem="true" Name="SerialNo" ItemName="Plant/SerialNo" ItemPath="">
+<Properties xsi:type="ns1:ItemProperty" Description="Item canonical data type" Name="ns1:dataType" ItemName="SerialNo" ItemPath="Plant/">
+<Value xsi:type="xsd:QName">xsd:unsignedInt</Value>
+</Properties>
+<Properties xsi:type="ns1:ItemProperty" Description="Item value" Name="ns1:value" ItemName="SerialNo" ItemPath="Plant/">
+<Value xsi:type="xsd:unsignedInt">123456</Value>
+</Properties>
+</Elements>
+<Elements xsi:type="ns1:BrowseElement" HasChildren="true" IsItem="false" Name="Log" ItemName="Plant/Log" ItemPath="">
+</Elements>
+</BrowseResponse>
+</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

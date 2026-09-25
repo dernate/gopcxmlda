@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<GetPropertiesResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<GetPropertiesResult ClientRequestHandle="crh1" RcvTime="2026-09-25T15:38:10.084Z" ReplyTime="2026-09-25T15:38:10.084Z" RevisedLocaleID="en" ServerState="running"/>
+<PropertyLists ItemName="Plant/Missing" ResultID="ns1:E_UNKNOWNITEMPATH" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+<Errors ID="ns2:E_UNKNOWNITEMPATH" xmlns:ns2="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<Text>Unknown node</Text>
+</Errors>
+</GetPropertiesResponse>
+</soapenv:Body>
+</soapenv:Envelope>

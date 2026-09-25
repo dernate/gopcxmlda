@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<SubscribeResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<SubscribeResult ClientRequestHandle="crh1" RcvTime="2026-09-25T15:38:10.084Z" ReplyTime="2026-09-25T15:38:10.084Z" RevisedLocaleID="en" ServerState="running"/>
+<RItemList RevisedSamplingRate="1000">
+<Items RevisedSamplingRate="0">
+<ItemValue ClientItemHandle="s0" ItemName="Plant/Missing" ResultID="ns1:E_INVALIDITEMPATH" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+</Items>
+</RItemList>
+</SubscribeResponse>
+</soapenv:Body>
+</soapenv:Envelope>

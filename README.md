@@ -37,6 +37,22 @@ func main() {
 }
 ```
 
+### HTTP Content-Type
+OPC XML-DA 1.0 is built on SOAP 1.1, so every request is sent with
+`Content-Type: text/xml; charset=utf-8` (`gopcxmlda.DefaultContentType`) and the
+operation's quoted `SOAPAction` header, as defined in the specification's WSDL.
+
+If a server insists on a different media type, override it per server:
+
+```go
+s := gopcxmlda.Server{
+    Url:         _url,
+    LocaleID:    "en-US",
+    Timeout:     10 * time.Second,
+    ContentType: "application/soap+xml", // the value sent by versions before v1.3.0
+}
+```
+
 ### GetStatus
 ```go
 var ClientRequestHandle string
@@ -132,7 +148,7 @@ var ClientRequestHandle string
 var ClientItemHandles []string
 SubscriptionPingRate := 5000
 subscribeResponse, err := s.Subscribe(context.Background(), items, ClientRequestHandle, ClientItemHandles, "ns1", true, SubscriptionPingRate, false, options)
-// for the SubscriptionPolledRefresh and SubscriptionCancel functionality see client_test.go
+// for the SubscriptionPolledRefresh and SubscriptionCancel functionality see TestLiveSubscribe in live_test.go
 ```
 
 ### GetProperties
@@ -150,3 +166,43 @@ propertyOptions := TPropertyOptions{
 var ClientRequestHandle string
 properties, err := s.GetProperties(context.Background(), items, propertyOptions, &ClientRequestHandle, "ns1")
 ```
+## Testing
+
+The test suite has two stages. The offline stage runs first; start the live stage only
+once it passes.
+
+```sh
+# 1. Offline: no network access. Replays recorded-shape server responses
+#    (testdata/responses) through every public method, plus payload, value-decoding,
+#    error-path and fuzz tests.
+go test -race ./...
+
+# 2. Live, read-only: needs a reachable server in OPC_URL (environment or .env).
+go test ./... && go test -tags live -run '^TestLive' -v .
+```
+
+The items the live tests use differ per server and can be set in the environment or
+`.env` (comma-separated; unset variables fall back to built-in defaults):
+
+| Variable | Used by |
+|---|---|
+| `OPC_URL` | all live tests (required; the tests are skipped without it) |
+| `OPC_READ_ITEMS` | `TestLiveRead` |
+| `OPC_BROWSE_ITEM` | `TestLiveBrowse` (ItemName of the starting element) |
+| `OPC_PROPERTY_ITEMS` | `TestLiveGetProperties` |
+| `OPC_SUBSCRIBE_ITEMS` | `TestLiveSubscribe` |
+| `OPC_WRITE_ITEM` | `TestLiveWrite` |
+| `OPC_WRITE_EXPECT_REJECT` | `TestLiveWrite`: `1` if `OPC_WRITE_ITEM` is read-only and the server must reject the write |
+
+A live test fails if the server rejects any of its items, so choose items that exist
+on the server under test.
+
+The live tests only compile with the `live` build tag, so a plain `go test ./...`
+never contacts a server. They only read, with one exception: `TestLiveWrite` writes to a
+real item and is skipped unless `GOPCXMLDA_LIVE_WRITE=1` is set in the process
+environment. Setting it in `.env` has no effect. Even then it never changes a value: it
+reads the item's current value, writes exactly that value back in the item's own type,
+and reads again to check that nothing changed.
+
+`go test -fuzz=FuzzValueUnmarshalXML` searches for inputs that make value decoding
+panic, beyond the seed corpus that runs with every `go test`.

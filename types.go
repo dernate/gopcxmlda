@@ -18,7 +18,15 @@ type Server struct {
 	LocaleID string        // Locale ID of the server
 	Timeout  time.Duration // Timeout duration for the connection
 	Client   *http.Client  // HTTP client used for requests. Created lazily (using Timeout) if nil, and then reused.
-	mu       sync.Mutex    // guards lazy initialization of Client/Timeout in send()
+
+	// ContentType overrides the HTTP Content-Type header of every request. Leave it
+	// empty to send DefaultContentType (text/xml; charset=utf-8), which is what OPC
+	// XML-DA's SOAP 1.1 binding requires and what virtually every server accepts. Set
+	// it only for a server that insists on something else, e.g.
+	// "application/soap+xml" - the value sent by earlier versions of this package.
+	ContentType string
+
+	mu sync.Mutex // guards lazy initialization of Client/Timeout in send()
 }
 
 type TBaseResult struct {
@@ -98,6 +106,11 @@ type TItem struct {
 	Quality          TQuality  `xml:"Quality"`
 	ItemPath         string    `xml:"ItemPath,attr"`
 	Error            string    `xml:"ResultID,attr"`
+	// ValueTypeQualifier is set by the server (on responses only) when the value's
+	// intended type differs from the type it is transmitted as. The specification
+	// transmits xsd:date and xsd:time as dateTime and xsd:duration as string, and names
+	// the intended type here, e.g. "xsd:duration" on a Value of type string.
+	ValueTypeQualifier string `xml:"ValueTypeQualifier,attr"`
 
 	// Request-only fields, used solely by Subscribe(); ignored by Read()/Write() and
 	// never populated on a response.
@@ -124,6 +137,26 @@ type TItem struct {
 }
 
 // TValue represents the structure for the value of an item.
+//
+// On responses, Type and Namespace hold the local name and prefix of the value's
+// xsi:type, and Value holds the decoded value:
+//
+//	string, QName, duration                    string (duration in its lexical form, "P1DT2H")
+//	boolean                                    bool
+//	int                                        int
+//	long                                       int64
+//	unsignedLong, unsignedInt                  uint64
+//	short, byte                                int16
+//	unsignedShort, unsignedByte                uint16
+//	float                                      float32
+//	double, decimal                            float64
+//	dateTime, date, time                       time.Time (UTC if the value has no zone)
+//	base64Binary                               []byte
+//	OPCQuality                                 TQuality
+//	ArrayOf... (incl. ArrayOfAnyType)          []interface{} of the element types
+//
+// For values the server transmits in a substitute type (date/time as dateTime,
+// duration as string), TItem.ValueTypeQualifier names the intended type.
 type TValue struct {
 	Type      string `xml:"type,attr"` // Can be set manually to force a specific type
 	Value     interface{}
@@ -171,6 +204,10 @@ type TBrowseElement struct {
 	Name        string `xml:"Name,attr"`
 	ItemName    string `xml:"ItemName,attr"`
 	ItemPath    string `xml:"ItemPath,attr"`
+	// Properties holds the element's item properties when the Browse request asked for
+	// them (TBrowseOptions.ReturnAllProperties, with values if ReturnPropertyValues is
+	// set); it is empty otherwise.
+	Properties []TProperties `xml:"Properties"`
 }
 
 type TWrite struct {
@@ -266,12 +303,23 @@ type TProperties struct {
 	Name        string `xml:"Name,attr"`
 	Type        string `xml:"type,attr"`
 	Value       TValue `xml:"Value"`
+	// ResultId is set when the server couldn't return this particular property, e.g.
+	// E_INVALIDPID for an optional property the item doesn't have. See ItemResults on
+	// TGetProperties and TBrowse.
+	ResultId string `xml:"ResultID,attr"`
 }
 
+// OpcErrors holds the <Errors> elements of a response. Per the specification these
+// are the verbose texts for the unique ResultIDs that occur in the response's items -
+// one element per ResultID, each with its own ID and text. See also ItemResults on the
+// response types, which pairs each item with its text.
 type OpcErrors struct {
-	Id   string   `xml:"ID,attr"`
-	Type string   `xml:"type,attr"`
-	Text []string `xml:"Text"`
+	Id   string   `xml:"ID,attr"`   // ID of the first <Errors> element
+	Type string   `xml:"type,attr"` // xsi:type of the first <Errors> element
+	Text []string `xml:"Text"`      // texts of all <Errors> elements, in order
+	// Entries holds every <Errors> element separately, keeping each ID with its own
+	// text - which Id/Text alone can't do once there is more than one.
+	Entries []OpcError `xml:"-"`
 }
 
 type TServerTime struct {
@@ -292,6 +340,7 @@ type TPropertyOptions struct {
 type soapResponse interface {
 	fault() TSoapError
 	responseErrors() OpcErrors
+	itemResults() []ItemResult
 }
 
 func (b TBodyBase) fault() TSoapError { return b.Fault }
