@@ -278,6 +278,10 @@ type TProperties struct {
 	Name        string `xml:"Name,attr"`
 	Type        string `xml:"type,attr"`
 	Value       TValue `xml:"Value"`
+	// ResultId is set when the server couldn't return this particular property, e.g.
+	// E_INVALIDPID for an optional property the item doesn't have. See ItemResults on
+	// TGetProperties and TBrowse.
+	ResultId string `xml:"ResultID,attr"`
 }
 
 // OpcErrors holds the <Errors> elements of a response. Per the specification these

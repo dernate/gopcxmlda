@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<soapenv:Body>
+<GetPropertiesResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<GetPropertiesResult ClientRequestHandle="crh1" RcvTime="2026-09-25T16:14:26.374Z" ReplyTime="2026-09-25T16:14:26.374Z" RevisedLocaleID="en" ServerState="running"/>
+<PropertyLists ItemName="Plant/Voltage">
+<Properties Description="Item Data Type" ItemName="Plant/Voltage" Name="dataType">
+<Value xsi:type="xsd:QName">xsd:float</Value>
+</Properties>
+<Properties Description="Item Value" ItemName="Plant/Voltage" Name="value">
+<Value xsi:type="xsd:float">10.25</Value>
+</Properties>
+<Properties Description="Item Quality" ItemName="Plant/Voltage" Name="quality">
+<Value QualityField="good" xsi:type="ns1:OPCQuality" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+</Properties>
+<Properties ItemName="Plant/Voltage" Name="lowEU" ResultID="ns2:E_INVALIDPID" xmlns:ns2="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+<Properties ItemName="Plant/Voltage" Name="highEU" ResultID="ns3:E_INVALIDPID" xmlns:ns3="http://opcfoundation.org/webservices/XMLDA/1.0/"/>
+</PropertyLists>
+<Errors ID="ns4:E_INVALIDPID" xmlns:ns4="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<Text>Invalid property for item</Text>
+</Errors>
+</GetPropertiesResponse>
+</soapenv:Body>
+</soapenv:Envelope>

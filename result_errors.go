@@ -21,9 +21,12 @@ type OpcError struct {
 type ItemResult struct {
 	ItemName         string
 	ItemPath         string
-	ClientItemHandle string // empty for GetProperties, whose results carry no handle
-	ResultID         string // as sent, see OpcError.ID
-	Text             string // empty if the server sent no text (e.g. ReturnErrorText off)
+	ClientItemHandle string // empty for GetProperties and Browse, whose results carry no handle
+	// Property is the name of the item property the ResultID refers to, for results of
+	// a single property (GetProperties, Browse); empty when it refers to the item.
+	Property string
+	ResultID string // as sent, see OpcError.ID
+	Text     string // empty if the server sent no text (e.g. ReturnErrorText off)
 }
 
 // Failed reports whether the item's ResultID is an error code rather than a success
@@ -133,19 +136,47 @@ func (t TSubscriptionPolledRefresh) ItemResults() []ItemResult {
 	return itemResultsOf(t.Response.ItemList.Items, t.Response.Errors)
 }
 
-// ItemResults returns every property list of the response that carries a ResultID,
-// paired with its text; see TRead.ItemResults.
+// ItemResults returns every property list and every single property of the response
+// that carries a ResultID, paired with its text; see TRead.ItemResults.
 func (t TGetProperties) ItemResults() []ItemResult {
 	var results []ItemResult
 	for _, list := range t.Response.PropertyList {
-		if list.ResultId == "" {
+		if list.ResultId != "" {
+			text, _ := t.Response.Errors.TextFor(list.ResultId)
+			results = append(results, ItemResult{
+				ItemName: list.ItemName,
+				ItemPath: list.ItemPath,
+				ResultID: list.ResultId,
+				Text:     text,
+			})
+		}
+		results = append(results, propertyResultsOf(list.ItemName, list.ItemPath, list.Properties, t.Response.Errors)...)
+	}
+	return results
+}
+
+// ItemResults returns every property of the browsed elements that carries a
+// ResultID, paired with its text; see TRead.ItemResults.
+func (t TBrowse) ItemResults() []ItemResult {
+	var results []ItemResult
+	for _, element := range t.Response.Elements {
+		results = append(results, propertyResultsOf(element.ItemName, element.ItemPath, element.Properties, t.Response.Errors)...)
+	}
+	return results
+}
+
+func propertyResultsOf(itemName, itemPath string, properties []TProperties, errs OpcErrors) []ItemResult {
+	var results []ItemResult
+	for _, property := range properties {
+		if property.ResultId == "" {
 			continue
 		}
-		text, _ := t.Response.Errors.TextFor(list.ResultId)
+		text, _ := errs.TextFor(property.ResultId)
 		results = append(results, ItemResult{
-			ItemName: list.ItemName,
-			ItemPath: list.ItemPath,
-			ResultID: list.ResultId,
+			ItemName: itemName,
+			ItemPath: itemPath,
+			Property: property.Name,
+			ResultID: property.ResultId,
 			Text:     text,
 		})
 	}
@@ -158,5 +189,5 @@ func (t TSubscribe) itemResults() []ItemResult                 { return t.ItemRe
 func (t TSubscriptionPolledRefresh) itemResults() []ItemResult { return t.ItemResults() }
 func (t TGetProperties) itemResults() []ItemResult             { return t.ItemResults() }
 func (t TGetStatus) itemResults() []ItemResult                 { return nil }
-func (t TBrowse) itemResults() []ItemResult                    { return nil }
+func (t TBrowse) itemResults() []ItemResult                    { return t.ItemResults() }
 func (t TSubscriptionCancel) itemResults() []ItemResult        { return nil }

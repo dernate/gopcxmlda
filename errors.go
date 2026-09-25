@@ -53,7 +53,11 @@ func (e *OpcResponseError) Error() string {
 			if i > 0 {
 				b.WriteString(",")
 			}
-			fmt.Fprintf(&b, " %s%s: %s", item.ItemPath, item.ItemName, item.ResultID)
+			fmt.Fprintf(&b, " %s%s", item.ItemPath, item.ItemName)
+			if item.Property != "" {
+				fmt.Fprintf(&b, " property %s", item.Property)
+			}
+			fmt.Fprintf(&b, ": %s", item.ResultID)
 			if item.Text != "" {
 				fmt.Fprintf(&b, " (%s)", item.Text)
 			}

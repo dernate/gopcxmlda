@@ -165,3 +165,49 @@ func TestResultIDHelpers(t *testing.T) {
 		}
 	}
 }
+
+// TestPropertyLevelResultsAreAttributed covers a ResultID on a single property (here:
+// optional properties the item doesn't have) - the error must name item and property.
+func TestPropertyLevelResultsAreAttributed(t *testing.T) {
+	s := fixtureServer(t, http.StatusOK, "axis/getproperties_pid.xml")
+	crh := ""
+	props, err := s.GetProperties(context.Background(), []TItem{{ItemName: "Plant/Voltage"}},
+		TPropertyOptions{ReturnAllProperties: true}, &crh, "")
+	var opcErr *OpcResponseError
+	if !errors.As(err, &opcErr) {
+		t.Fatalf("expected an *OpcResponseError, got: %v", err)
+	}
+	want := []ItemResult{
+		{ItemName: "Plant/Voltage", Property: "lowEU", ResultID: "ns2:E_INVALIDPID", Text: "Invalid property for item"},
+		{ItemName: "Plant/Voltage", Property: "highEU", ResultID: "ns3:E_INVALIDPID", Text: "Invalid property for item"},
+	}
+	if !reflect.DeepEqual(opcErr.Items, want) {
+		t.Fatalf("expected %+v, got %+v", want, opcErr.Items)
+	}
+	if !strings.Contains(err.Error(), "Plant/Voltage property lowEU: ns2:E_INVALIDPID (Invalid property for item)") {
+		t.Errorf("expected item and property in the message, got: %v", err)
+	}
+	// The properties that could be returned are still there.
+	list := props.Response.PropertyList[0]
+	if len(list.Properties) != 5 || list.Properties[1].Value.Value != float32(10.25) || list.Properties[3].ResultId == "" {
+		t.Errorf("unexpected properties: %+v", list.Properties)
+	}
+}
+
+func TestBrowsePropertyResults(t *testing.T) {
+	doc := soapEnvelope(`<BrowseResponse>` +
+		`<Elements Name="Voltage" ItemName="Plant/Voltage" IsItem="true">` +
+		`<Properties Name="value"><Value xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="xsd:float">1</Value></Properties>` +
+		`<Properties Name="lowEU" ResultID="E_INVALIDPID"/>` +
+		`</Elements>` +
+		`<Errors ID="E_INVALIDPID"><Text>Invalid property for item</Text></Errors>` +
+		`</BrowseResponse>`)
+	var browse TBrowse
+	if err := xml.Unmarshal([]byte(doc), &browse); err != nil {
+		t.Fatal(err)
+	}
+	want := []ItemResult{{ItemName: "Plant/Voltage", Property: "lowEU", ResultID: "E_INVALIDPID", Text: "Invalid property for item"}}
+	if got := browse.ItemResults(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("expected %+v, got %+v", want, got)
+	}
+}
