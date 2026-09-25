@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/" xmlns:ns2="Service">
+<SOAP-ENV:Header></SOAP-ENV:Header>
+<SOAP-ENV:Body id="_0">
+<ReadResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<ReadResult xsi:type="ns1:ReplyBase" ServerState="running" RevisedLocaleID="en-us" ReplyTime="2026-09-25T17:51:00.376+00:00" RcvTime="2026-09-25T17:51:00.370+00:00" ClientRequestHandle="crh1"></ReadResult>
+<RItemList xsi:type="ns1:ReplyItemList" Reserved="">
+<Items xsi:type="ns1:ItemValue" Timestamp="2026-09-25T15:38:06.025+00:00" ItemPath="" ClientItemHandle="h0" ItemName="Plant/Power">
+<Value xsi:type="xsd:int">74</Value>
+<Quality xsi:type="ns1:OPCQuality" VendorField="0" LimitField="none" QualityField="good"></Quality>
+</Items>
+<Items xsi:type="ns1:ItemValue" Timestamp="2026-09-25T15:30:00.000+00:00" ItemPath="" ClientItemHandle="h1" ItemName="Plant/Report">
+<Value xsi:type="ns1:ArrayOfDouble">
+<double>10</double>
+<double>3.8999999999999999</double>
+<double>-275</double>
+<double>65.534999999999997</double>
+</Value>
+<Quality xsi:type="ns1:OPCQuality" VendorField="0" LimitField="none" QualityField="good"></Quality>
+</Items>
+<Items xsi:type="ns1:ItemValue" Timestamp="2026-09-25T09:59:46.000+00:00" ItemPath="" ClientItemHandle="h2" ItemName="Plant/Status">
+<Value xsi:type="ns1:ArrayOfUnsignedShort">
+<unsignedShort>0</unsignedShort>
+<unsignedShort>2</unsignedShort>
+<unsignedShort>65535</unsignedShort>
+</Value>
+<Quality xsi:type="ns1:OPCQuality" VendorField="0" LimitField="none" QualityField="good"></Quality>
+</Items>
+<Items xsi:type="ns1:ItemValue" ResultID="E_UNKNOWNITEMNAME" Timestamp="1969-12-31T23:59:59.494+00:00" ItemPath="" ClientItemHandle="h3" ItemName="Does/Not/Exist">
+</Items>
+</RItemList>
+<Errors xsi:type="ns1:OPCError" ID="E_UNKNOWNITEMNAME">
+<Text xsi:type="xsd:string">The item name is no longer available in the server address space</Text>
+</Errors>
+</ReadResponse>
+</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

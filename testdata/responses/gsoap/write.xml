@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/" xmlns:ns2="Service">
+<SOAP-ENV:Header></SOAP-ENV:Header>
+<SOAP-ENV:Body id="_0">
+<WriteResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<WriteResult xsi:type="ns1:ReplyBase" ServerState="running" RevisedLocaleID="en-us" ReplyTime="2026-09-25T17:51:00.376+00:00" RcvTime="2026-09-25T17:51:00.370+00:00" ClientRequestHandle="crh1"></WriteResult>
+<RItemList xsi:type="ns1:ReplyItemList" Reserved="">
+<Items xsi:type="ns1:ItemValue" Timestamp="2026-09-25T17:51:00.376+00:00" ItemPath="" ClientItemHandle="w0" ItemName="Plant/Setpoint">
+<Value xsi:type="ns1:ArrayOfInt">
+<int>0</int>
+<int>0</int>
+<int>0</int>
+</Value>
+<Quality xsi:type="ns1:OPCQuality" VendorField="0" LimitField="none" QualityField="good"></Quality>
+</Items>
+</RItemList>
+</WriteResponse>
+</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

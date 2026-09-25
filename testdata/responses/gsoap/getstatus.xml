@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/" xmlns:ns2="Service">
+<SOAP-ENV:Header></SOAP-ENV:Header>
+<SOAP-ENV:Body id="_0">
+<GetStatusResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/">
+<GetStatusResult xsi:type="ns1:ReplyBase" ServerState="running" RevisedLocaleID="en-us" ReplyTime="2026-09-25T17:51:00.376+00:00" RcvTime="2026-09-25T17:51:00.370+00:00" ClientRequestHandle="crh1"></GetStatusResult>
+<Status xsi:type="ns1:ServerStatus" ProductVersion="V1.00" StartTime="2026-09-04T13:05:53.164+00:00">
+<StatusInfo xsi:type="xsd:string">The server is running normally.</StatusInfo>
+<VendorInfo xsi:type="xsd:string">Example OPC XML-DA Server</VendorInfo>
+<SupportedLocaleIDs xsi:type="xsd:string">en-us</SupportedLocaleIDs>
+<SupportedInterfaceVersions xsi:type="ns1:interfaceVersion">XML_DA_Version_1_0</SupportedInterfaceVersions>
+</Status>
+</GetStatusResponse>
+</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>

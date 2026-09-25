@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/" xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:ns1="http://opcfoundation.org/webservices/XMLDA/1.0/" xmlns:ns2="Service">
+<SOAP-ENV:Header></SOAP-ENV:Header>
+<SOAP-ENV:Body id="_0">
+<SubscribeResponse xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/" ServerSubHandle="191915368">
+<SubscribeResult xsi:type="ns1:ReplyBase" ServerState="running" RevisedLocaleID="en-us" ReplyTime="2026-09-25T17:51:00.376+00:00" RcvTime="2026-09-25T17:51:00.370+00:00" ClientRequestHandle="crh1"></SubscribeResult>
+<RItemList xsi:type="ns1:SubscribeReplyItemList" RevisedSamplingRate="0">
+<Items xsi:type="ns1:SubscribeItemValue" RevisedSamplingRate="2500">
+<ItemValue xsi:type="ns1:ItemValue" Timestamp="2026-09-25T15:38:06.025+00:00" ClientItemHandle="s0" ItemName="Plant/Power" ItemPath="">
+<Value xsi:type="xsd:int">74</Value>
+<Quality xsi:type="ns1:OPCQuality" VendorField="0" LimitField="none" QualityField="good"></Quality>
+</ItemValue>
+</Items>
+<Items xsi:type="ns1:SubscribeItemValue" RevisedSamplingRate="0">
+<ItemValue xsi:type="ns1:ItemValue" ResultID="E_UNKNOWNITEMNAME" Timestamp="1969-12-31T23:59:59.964+00:00" ClientItemHandle="s1" ItemName="Does/Not/Exist" ItemPath="">
+</ItemValue>
+</Items>
+</RItemList>
+<Errors xsi:type="ns1:OPCError" ID="E_UNKNOWNITEMNAME">
+<Text xsi:type="xsd:string">The item name is no longer available in the server address space</Text>
+</Errors>
+</SubscribeResponse>
+</SOAP-ENV:Body>
+</SOAP-ENV:Envelope>
