@@ -51,12 +51,30 @@ func (s *Server) ensureClient() *http.Client {
 	return s.Client
 }
 
+// contentType returns the Content-Type to send: Server.ContentType if set, otherwise
+// DefaultContentType.
+func (s *Server) contentType() string {
+	if s.ContentType != "" {
+		return s.ContentType
+	}
+	return DefaultContentType
+}
+
+// quoteSOAPAction renders a soapAction URI as a SOAPAction header value. SOAP 1.1
+// (section 6.1.1) defines the value as a quoted string (SOAPAction: "URI"), which is
+// also what .NET and Java SOAP clients send; some strict servers compare the header
+// including the quotes and reject an unquoted value.
+func quoteSOAPAction(actionURI string) string {
+	return `"` + actionURI + `"`
+}
+
 // send sends a payload to the server and returns the byte response and an error if any.
 func send(ctx context.Context, s *Server, payload string, SOAPAction string) ([]byte, error) {
 	if err := s.validate(); err != nil {
 		return nil, err
 	}
-	if _, ok := headersSoap[fmt.Sprintf("SOAPAction-%s", SOAPAction)]; !ok {
+	actionURI, ok := soapActions[SOAPAction]
+	if !ok {
 		return nil, fmt.Errorf("unknown SOAPAction: %s", SOAPAction)
 	}
 
@@ -64,8 +82,8 @@ func send(ctx context.Context, s *Server, payload string, SOAPAction string) ([]
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", headersSoap["content-type"])
-	req.Header.Set("SOAPAction", headersSoap[fmt.Sprintf("SOAPAction-%s", SOAPAction)])
+	req.Header.Set("Content-Type", s.contentType())
+	req.Header.Set("SOAPAction", quoteSOAPAction(actionURI))
 
 	client := s.ensureClient()
 

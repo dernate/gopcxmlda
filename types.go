@@ -18,7 +18,15 @@ type Server struct {
 	LocaleID string        // Locale ID of the server
 	Timeout  time.Duration // Timeout duration for the connection
 	Client   *http.Client  // HTTP client used for requests. Created lazily (using Timeout) if nil, and then reused.
-	mu       sync.Mutex    // guards lazy initialization of Client/Timeout in send()
+
+	// ContentType overrides the HTTP Content-Type header of every request. Leave it
+	// empty to send DefaultContentType (text/xml; charset=utf-8), which is what OPC
+	// XML-DA's SOAP 1.1 binding requires and what virtually every server accepts. Set
+	// it only for a server that insists on something else, e.g.
+	// "application/soap+xml" - the value sent by earlier versions of this package.
+	ContentType string
+
+	mu sync.Mutex // guards lazy initialization of Client/Timeout in send()
 }
 
 type TBaseResult struct {

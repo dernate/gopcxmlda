@@ -29,7 +29,7 @@ func soapEnvelope(body string) string {
 
 func TestSendDefaultsTimeoutAndReusesClient(t *testing.T) {
 	s, ts := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/soap+xml")
+		w.Header().Set("Content-Type", DefaultContentType)
 		_, _ = w.Write([]byte(soapEnvelope(`<GetStatusResponse></GetStatusResponse>`)))
 	})
 	defer ts.Close()
@@ -68,7 +68,7 @@ func TestSendRejectsNilURL(t *testing.T) {
 
 func TestSubscriptionCancelReturnsFalseOnFault(t *testing.T) {
 	s, ts := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/soap+xml")
+		w.Header().Set("Content-Type", DefaultContentType)
 		_, _ = w.Write([]byte(soapEnvelope(
 			`<SOAP-ENV:Fault><faultcode>Client</faultcode><faultstring>bad request</faultstring></SOAP-ENV:Fault>`,
 		)))
@@ -90,7 +90,7 @@ func TestSubscriptionCancelReturnsFalseOnFault(t *testing.T) {
 // initialization in send(). Run with -race to verify.
 func TestConcurrentGetStatusIsRaceFree(t *testing.T) {
 	s, ts := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/soap+xml")
+		w.Header().Set("Content-Type", DefaultContentType)
 		_, _ = w.Write([]byte(soapEnvelope(`<GetStatusResponse></GetStatusResponse>`)))
 	})
 	defer ts.Close()
@@ -114,7 +114,7 @@ func TestConcurrentGetStatusIsRaceFree(t *testing.T) {
 // formatted string.
 func TestSoapFaultIsErrorsAsDetectable(t *testing.T) {
 	s, ts := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/soap+xml")
+		w.Header().Set("Content-Type", DefaultContentType)
 		_, _ = w.Write([]byte(soapEnvelope(
 			`<SOAP-ENV:Fault><faultcode>Client</faultcode><faultstring>bad request</faultstring></SOAP-ENV:Fault>`,
 		)))
@@ -148,7 +148,7 @@ func TestNilClientRequestHandleReturnsErrorNotPanic(t *testing.T) {
 
 func TestSubscriptionCancelReturnsTrueOnSuccess(t *testing.T) {
 	s, ts := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/soap+xml")
+		w.Header().Set("Content-Type", DefaultContentType)
 		_, _ = w.Write([]byte(soapEnvelope(`<SubscriptionCancelResponse ClientRequestHandle="abc"></SubscriptionCancelResponse>`)))
 	})
 	defer ts.Close()

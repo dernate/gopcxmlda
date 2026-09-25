@@ -37,6 +37,22 @@ func main() {
 }
 ```
 
+### HTTP Content-Type
+OPC XML-DA 1.0 is built on SOAP 1.1, so every request is sent with
+`Content-Type: text/xml; charset=utf-8` (`gopcxmlda.DefaultContentType`) and the
+operation's quoted `SOAPAction` header, as defined in the specification's WSDL.
+
+If a server insists on a different media type, override it per server:
+
+```go
+s := gopcxmlda.Server{
+    Url:         _url,
+    LocaleID:    "en-US",
+    Timeout:     10 * time.Second,
+    ContentType: "application/soap+xml", // the value sent by versions before v1.3.0
+}
+```
+
 ### GetStatus
 ```go
 var ClientRequestHandle string
