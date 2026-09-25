@@ -181,6 +181,20 @@ go test -race ./...
 go test ./... && go test -tags live -run '^TestLive' -v .
 ```
 
+The items the live tests use differ per server and can be set in the environment or
+`.env` (comma-separated; unset variables fall back to built-in defaults):
+
+| Variable | Used by |
+|---|---|
+| `OPC_URL` | all live tests (required; the tests are skipped without it) |
+| `OPC_READ_ITEMS` | `TestLiveRead` |
+| `OPC_BROWSE_ITEM` | `TestLiveBrowse` (ItemName of the starting element) |
+| `OPC_PROPERTY_ITEMS` | `TestLiveGetProperties` |
+| `OPC_SUBSCRIBE_ITEMS` | `TestLiveSubscribe` |
+
+A live test fails if the server rejects any of its items, so choose items that exist
+on the server under test.
+
 The live tests only compile with the `live` build tag, so a plain `go test ./...`
 never contacts a server. They only read, with one exception: `TestLiveWrite` writes to a
 real control item and is skipped unless `GOPCXMLDA_LIVE_WRITE=1` is set in the process

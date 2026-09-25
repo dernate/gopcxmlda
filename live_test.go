@@ -9,12 +9,23 @@
 //
 // The server URL comes from OPC_URL (process environment or .env). Every test except
 // TestLiveWrite is read-only; TestLiveWrite additionally requires GOPCXMLDA_LIVE_WRITE=1.
+//
+// The items the read-only tests use can be set per server (comma-separated lists):
+//
+//	OPC_READ_ITEMS       items for TestLiveRead
+//	OPC_BROWSE_ITEM      element (ItemName) TestLiveBrowse starts at
+//	OPC_PROPERTY_ITEMS   items for TestLiveGetProperties
+//	OPC_SUBSCRIBE_ITEMS  items for TestLiveSubscribe (sampled every 1000 ms)
+//
+// Unset variables fall back to the defaults below. The item TestLiveWrite writes to is
+// deliberately not configurable.
 package gopcxmlda
 
 import (
 	"context"
 	"net/url"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +56,37 @@ func liveServer(t *testing.T, timeout time.Duration) *Server {
 	return &Server{Url: u, LocaleID: "en-US", Timeout: timeout}
 }
 
+// liveItems returns the items named in the comma-separated environment variable, or
+// the defaults if it is unset or empty.
+func liveItems(variable string, defaults ...string) []TItem {
+	names := defaults
+	if raw := strings.TrimSpace(os.Getenv(variable)); raw != "" {
+		names = nil
+		for _, name := range strings.Split(raw, ",") {
+			if name = strings.TrimSpace(name); name != "" {
+				names = append(names, name)
+			}
+		}
+	}
+	items := make([]TItem, len(names))
+	for i, name := range names {
+		items[i] = TItem{ItemName: name}
+	}
+	return items
+}
+
+// assertNoFailedItems fails the test for every item the server rejected. Without it, a
+// server that flags items only by ResultID (no <Errors> element) would let a test pass
+// although none of its items exist on that server.
+func assertNoFailedItems(t *testing.T, results []ItemResult) {
+	t.Helper()
+	for _, r := range results {
+		if r.Failed() {
+			t.Errorf("item %s%s failed: %s %s", r.ItemPath, r.ItemName, r.ResultID, r.Text)
+		}
+	}
+}
+
 func TestLiveGetStatus(t *testing.T) {
 	s := liveServer(t, 10*time.Second)
 	var ClientRequestHandle string
@@ -57,11 +99,7 @@ func TestLiveGetStatus(t *testing.T) {
 
 func TestLiveRead(t *testing.T) {
 	s := liveServer(t, 10*time.Second)
-	items := []TItem{
-		{ItemName: "Loc/Wec/Plant1/P"},
-		{ItemName: "Loc/Wec/Plant1/Log/Wecstd/Rep/Val-1"},
-		{ItemName: "Loc/Wec/Plant1/Status/St"},
-	}
+	items := liveItems("OPC_READ_ITEMS", "Loc/Wec/Plant1/P", "Loc/Wec/Plant1/Log/Wecstd/Rep/Val-1", "Loc/Wec/Plant1/Status/St")
 	options := map[string]interface{}{
 		"ReturnItemTime": true,
 		"ReturnItemPath": true,
@@ -73,18 +111,29 @@ func TestLiveRead(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertNoFailedItems(t, r.ItemResults())
 	t.Logf("Read: %+v", r)
 }
 
 func TestLiveBrowse(t *testing.T) {
 	s := liveServer(t, 10*time.Second)
 	var ClientRequestHandle string
-	r, err := s.Browse(context.Background(), "Loc/Wec/Plant1", &ClientRequestHandle, "", TBrowseOptions{
+	// Browse addresses the starting element by ItemName; ItemPath stays empty, as in the
+	// ItemName/ItemPath pairs the servers return for their elements.
+	start := os.Getenv("OPC_BROWSE_ITEM")
+	if start == "" {
+		start = "Loc/Wec/Plant1"
+	}
+	r, err := s.Browse(context.Background(), "", &ClientRequestHandle, "", TBrowseOptions{
+		ItemName:             start,
 		ReturnAllProperties:  true,
 		ReturnPropertyValues: true,
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if len(r.Response.Elements) == 0 {
+		t.Errorf("expected Browse of %q to return elements", start)
 	}
 	t.Logf("Browse: %+v", r)
 }
@@ -92,10 +141,7 @@ func TestLiveBrowse(t *testing.T) {
 func TestLiveGetProperties(t *testing.T) {
 	s := liveServer(t, 10*time.Second)
 	var ClientRequestHandle string
-	items := []TItem{
-		{ItemName: "Loc/Wec/Plant1/Log/Wecstd/Rep/Val-1"},
-		{ItemName: "Loc/LocNo"},
-	}
+	items := liveItems("OPC_PROPERTY_ITEMS", "Loc/Wec/Plant1/Log/Wecstd/Rep/Val-1", "Loc/LocNo")
 	p, err := s.GetProperties(context.Background(), items, TPropertyOptions{
 		ReturnAllProperties:  true,
 		ReturnPropertyValues: true,
@@ -104,6 +150,7 @@ func TestLiveGetProperties(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertNoFailedItems(t, p.ItemResults())
 	t.Logf("GetProperties: %+v", p)
 }
 
@@ -116,6 +163,12 @@ func TestLiveSubscribe(t *testing.T) {
 		{ItemName: "Loc/Wec/Plant1/Vane", EnableBuffering: true, RequestedSamplingRate: 3000},
 		{ItemName: "Loc/Wec/Plant1/P", EnableBuffering: true, RequestedSamplingRate: 1000},
 		{ItemName: "Loc/Wec/Plant1/Vwind", EnableBuffering: false, RequestedSamplingRate: 5000},
+	}
+	if os.Getenv("OPC_SUBSCRIBE_ITEMS") != "" {
+		items = liveItems("OPC_SUBSCRIBE_ITEMS")
+		for i := range items {
+			items[i].RequestedSamplingRate = 1000
+		}
 	}
 	options := map[string]interface{}{
 		"ReturnItemTime": true,
@@ -147,6 +200,10 @@ func TestLiveSubscribe(t *testing.T) {
 	}
 	if err != nil {
 		t.Fatal(err)
+	}
+	assertNoFailedItems(t, response.ItemResults())
+	if handle == "" {
+		t.Fatal("the server created no subscription (no ServerSubHandle)")
 	}
 	t.Logf("Subscription started. SubscriptionResponse: %+v", response)
 
