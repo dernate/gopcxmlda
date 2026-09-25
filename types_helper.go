@@ -45,12 +45,19 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	if typeAttr == nil {
 		return fmt.Errorf("gopcxmlda: missing xsi:type attribute on <%s> element", start.Name.Local)
 	}
-	split := strings.Split(typeAttr.Value, ":")
-	if len(split) < 2 {
+	// xsi:type is a QName. It is usually prefixed ("xsd:int", "ns1:ArrayOfDouble"), but
+	// may also be unprefixed when the type is in the default namespace - the form the
+	// specification's own examples use (xsi:type="ArrayOfInt"). Namespace then stays
+	// empty.
+	prefix, local, hasPrefix := strings.Cut(typeAttr.Value, ":")
+	if !hasPrefix {
+		prefix, local = "", typeAttr.Value
+	}
+	if local == "" || strings.Contains(local, ":") {
 		return fmt.Errorf("gopcxmlda: unexpected xsi:type attribute %q on <%s> element", typeAttr.Value, start.Name.Local)
 	}
-	v.Namespace = split[0]
-	v.Type = split[1]
+	v.Namespace = prefix
+	v.Type = local
 	switch v.Type {
 	case "string", "base64Binary", "QName":
 		var data string
@@ -64,7 +71,13 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 			return err
 		}
 		v.Value = data
-	case "dateTime", "time", "date", "duration":
+	case "dateTime":
+		var data xsdDateTime
+		if err := d.DecodeElement(&data, &start); err != nil {
+			return err
+		}
+		v.Value = time.Time(data)
+	case "time", "date", "duration":
 		var data time.Time
 		if err := d.DecodeElement(&data, &start); err != nil {
 			return err
@@ -122,6 +135,8 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 		switch v.Type {
 		case "ArrayOfString", "ArrayOfBoolean", "ArrayOfDateTime", "ArrayOfLong", "ArrayOfInt", "ArrayOfUnsignedLong", "ArrayOfUnsignedInt", "ArrayOfShort", "ArrayOfByte", "ArrayOfUnsignedShort", "ArrayOfUnsignedByte", "ArrayOfFloat", "ArrayOfDouble", "ArrayOfDecimal":
 			return v.decodeArrayOf(d, &start)
+		case "ArrayOfAnyType":
+			return v.decodeArrayOfAnyType(d, &start)
 		default:
 			return fmt.Errorf("unknown type: %s", v.Type)
 		}
@@ -158,12 +173,12 @@ func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 				}
 				value = b
 			case "ArrayOfDateTime":
-				var t time.Time
+				var t xsdDateTime
 				err := d.DecodeElement(&t, &se)
 				if err != nil {
 					return err
 				}
-				value = t
+				value = time.Time(t)
 			case "ArrayOfLong":
 				var l int64
 				err := d.DecodeElement(&l, &se)
@@ -252,6 +267,99 @@ func (v *TValue) decodeArrayOf(d *xml.Decoder, start *xml.StartElement) error {
 			}
 		}
 	}
+}
+
+// decodeArrayOfAnyType decodes an ArrayOfAnyType, whose elements each carry their own
+// xsi:type and may be of different simple types or arrays themselves, e.g.
+//
+//	<Value xsi:type="ArrayOfAnyType">
+//	  <anyType xsi:type="xsd:byte">127</anyType>
+//	  <anyType xsi:type="ArrayOfInt"><int>1</int></anyType>
+//	</Value>
+//
+// Each element is decoded like a <Value> of its own, so Value becomes a []interface{}
+// holding the elements' decoded values - a nested array as a nested []interface{}.
+func (v *TValue) decodeArrayOfAnyType(d *xml.Decoder, start *xml.StartElement) error {
+	var values []interface{}
+	for {
+		t, err := d.Token()
+		if err != nil {
+			return fmt.Errorf("gopcxmlda: error decoding %s: %w", v.Type, err)
+		}
+		switch se := t.(type) {
+		case xml.StartElement:
+			var elem TValue
+			if err := elem.UnmarshalXML(d, se); err != nil {
+				return err
+			}
+			values = append(values, elem.Value)
+		case xml.EndElement:
+			if se == start.End() {
+				v.Value = values
+				return nil
+			}
+		}
+	}
+}
+
+// xsdDateTime decodes an xsd:dateTime. Unlike time.Time's own text decoding (strict RFC
+// 3339), it also accepts the timezone-less form XML Schema allows
+// ("2026-09-25T15:38:06.5"), which is interpreted as UTC.
+type xsdDateTime time.Time
+
+func (t *xsdDateTime) UnmarshalText(text []byte) error {
+	parsed, err := parseXsdDateTime(string(text))
+	if err != nil {
+		return err
+	}
+	*t = xsdDateTime(parsed)
+	return nil
+}
+
+func parseXsdDateTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return parsed, nil
+	}
+	// Without a zone designator, time.Parse returns the time in UTC.
+	parsed, err := time.Parse("2006-01-02T15:04:05.999999999", value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("gopcxmlda: %q is not a valid xsd:dateTime", value)
+	}
+	return parsed, nil
+}
+
+// UnmarshalXML decodes a TItem, reading its Timestamp attribute as an xsd:dateTime
+// (see xsdDateTime) instead of as strict RFC 3339. All other fields decode as declared
+// on TItem.
+func (i *TItem) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	type plainItem TItem // same fields, without this method - avoids infinite recursion
+	aux := struct {
+		*plainItem
+		Timestamp xsdDateTime `xml:"Timestamp,attr"` // shadows plainItem.Timestamp
+	}{plainItem: (*plainItem)(i)}
+	if err := d.DecodeElement(&aux, &start); err != nil {
+		return err
+	}
+	i.Timestamp = time.Time(aux.Timestamp)
+	return nil
+}
+
+// UnmarshalXML decodes a TBaseResult, reading ReplyTime and RcvTime as xsd:dateTime
+// (see xsdDateTime) instead of as strict RFC 3339.
+func (r *TBaseResult) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+	type plainResult TBaseResult
+	aux := struct {
+		*plainResult
+		ReplyTime   xsdDateTime `xml:"ReplyTime,attr"`
+		ReceiveTime xsdDateTime `xml:"RcvTime,attr"`
+	}{plainResult: (*plainResult)(r)}
+	if err := d.DecodeElement(&aux, &start); err != nil {
+		return err
+	}
+	r.ReplyTime = time.Time(aux.ReplyTime)
+	r.ReceiveTime = time.Time(aux.ReceiveTime)
+	return nil
 }
 
 func valueIsArrayOrSlice(value interface{}) bool {

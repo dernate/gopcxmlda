@@ -290,3 +290,116 @@ func FuzzValueUnmarshalXML(f *testing.F) {
 		_ = xml.Unmarshal([]byte(doc), &v)
 	})
 }
+
+// TestValueAcceptsUnprefixedXsiType covers the form the specification's own examples
+// use: a type in the default namespace, without a prefix.
+func TestValueAcceptsUnprefixedXsiType(t *testing.T) {
+	const opcDefault = `xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/" ` +
+		`xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"`
+	v, err := decodeValue(t, `<Value `+opcDefault+` xsi:type="ArrayOfInt"><int>-2147483648</int><int>0</int></Value>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Type != "ArrayOfInt" || v.Namespace != "" || !reflect.DeepEqual(v.Value, []interface{}{-2147483648, 0}) {
+		t.Fatalf("unexpected value: %+v", v)
+	}
+
+	v, err = decodeValue(t, `<Value `+opcDefault+` xsi:type="string">plain</Value>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Type != "string" || v.Value != "plain" {
+		t.Fatalf("unexpected value: %+v", v)
+	}
+}
+
+// TestValueDecodesArrayOfAnyType uses the specification's example: mixed simple
+// types plus a nested array.
+func TestValueDecodesArrayOfAnyType(t *testing.T) {
+	doc := `<Value xmlns="http://opcfoundation.org/webservices/XMLDA/1.0/" ` +
+		`xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" ` +
+		`xsi:type="ArrayOfAnyType">
+  <anyType xsi:type="xsd:byte">127</anyType>
+  <anyType xsi:type="xsd:unsignedByte">255</anyType>
+  <anyType xsi:type="xsd:string">Hello&lt;&gt;World</anyType>
+  <anyType xsi:type="ArrayOfInt">
+    <int>-2147483648</int>
+    <int>0</int>
+    <int>2147483647</int>
+  </anyType>
+  <anyType xsi:type="xsd:dateTime">2026-09-25T15:38:06</anyType>
+</Value>`
+	v, err := decodeValue(t, doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []interface{}{
+		int16(127), uint16(255), "Hello<>World",
+		[]interface{}{-2147483648, 0, 2147483647},
+		time.Date(2026, 9, 25, 15, 38, 6, 0, time.UTC),
+	}
+	if v.Type != "ArrayOfAnyType" || !reflect.DeepEqual(v.Value, want) {
+		t.Fatalf("expected %#v, got %#v", want, v.Value)
+	}
+
+	v, err = decodeValue(t, `<Value `+valueNamespaces+` xsi:type="ns1:ArrayOfAnyType"></Value>`)
+	if err != nil || len(v.Value.([]interface{})) != 0 {
+		t.Fatalf("expected an empty ArrayOfAnyType, got %+v, %v", v, err)
+	}
+
+	if _, err := decodeValue(t, `<Value `+valueNamespaces+` xsi:type="ns1:ArrayOfAnyType"><ns1:anyType>1</ns1:anyType></Value>`); err == nil {
+		t.Fatal("expected an error for an ArrayOfAnyType element without xsi:type")
+	}
+}
+
+// TestDateTimeWithoutOffsetIsUTC pins down that an xsd:dateTime without a zone
+// designator - valid per XML Schema - is read as UTC everywhere a dateTime occurs:
+// scalar values, array elements, item timestamps and reply times.
+func TestDateTimeWithoutOffsetIsUTC(t *testing.T) {
+	want := time.Date(2026, 9, 25, 15, 38, 6, 500000000, time.UTC)
+
+	v, err := decodeValue(t, `<Value `+valueNamespaces+` xsi:type="xsd:dateTime">2026-09-25T15:38:06.5</Value>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := v.Value.(time.Time); !got.Equal(want) || got.Location() != time.UTC {
+		t.Errorf("scalar: expected %v in UTC, got %v", want, got)
+	}
+
+	v, err = decodeValue(t, `<Value `+valueNamespaces+` xsi:type="ns1:ArrayOfDateTime"><ns1:dateTime> 2026-09-25T15:38:06.5 </ns1:dateTime></Value>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := v.Value.([]interface{})[0].(time.Time); !got.Equal(want) {
+		t.Errorf("array: expected %v, got %v", want, got)
+	}
+
+	doc := `<Envelope><Body><ReadResponse>
+<ReadResult ReplyTime="2026-09-25T15:38:06.5" RcvTime="2026-09-25T15:38:06.5+02:00" ServerState="running"/>
+<RItemList><Items ItemName="a" Timestamp="2026-09-25T15:38:06.5"/><Items ItemName="b"/></RItemList>
+</ReadResponse></Body></Envelope>`
+	var r TRead
+	if err := xml.Unmarshal([]byte(doc), &r); err != nil {
+		t.Fatal(err)
+	}
+	result := r.Response.Result
+	if !result.ReplyTime.Equal(want) || !result.ReceiveTime.Equal(want.Add(-2*time.Hour)) {
+		t.Errorf("reply times: expected %v / %v, got %v / %v", want, want.Add(-2*time.Hour), result.ReplyTime, result.ReceiveTime)
+	}
+	if result.ServerState != "running" {
+		t.Errorf("expected the other TBaseResult attributes to still decode, got %+v", result)
+	}
+	items := r.Response.ItemList.Items
+	if !items[0].Timestamp.Equal(want) || items[0].ItemName != "a" {
+		t.Errorf("item timestamp: expected %v, got %+v", want, items[0])
+	}
+	if !items[1].Timestamp.IsZero() {
+		t.Errorf("expected a zero Timestamp when the attribute is absent, got %v", items[1].Timestamp)
+	}
+
+	var bad TRead
+	badDoc := `<Envelope><Body><ReadResponse><RItemList><Items Timestamp="yesterday"/></RItemList></ReadResponse></Body></Envelope>`
+	if err := xml.Unmarshal([]byte(badDoc), &bad); err == nil {
+		t.Error("expected an error for an invalid Timestamp attribute")
+	}
+}
