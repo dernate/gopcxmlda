@@ -106,6 +106,11 @@ type TItem struct {
 	Quality          TQuality  `xml:"Quality"`
 	ItemPath         string    `xml:"ItemPath,attr"`
 	Error            string    `xml:"ResultID,attr"`
+	// ValueTypeQualifier is set by the server (on responses only) when the value's
+	// intended type differs from the type it is transmitted as. The specification
+	// transmits xsd:date and xsd:time as dateTime and xsd:duration as string, and names
+	// the intended type here, e.g. "xsd:duration" on a Value of type string.
+	ValueTypeQualifier string `xml:"ValueTypeQualifier,attr"`
 
 	// Request-only fields, used solely by Subscribe(); ignored by Read()/Write() and
 	// never populated on a response.
@@ -132,6 +137,26 @@ type TItem struct {
 }
 
 // TValue represents the structure for the value of an item.
+//
+// On responses, Type and Namespace hold the local name and prefix of the value's
+// xsi:type, and Value holds the decoded value:
+//
+//	string, QName, duration                    string (duration in its lexical form, "P1DT2H")
+//	boolean                                    bool
+//	int                                        int
+//	long                                       int64
+//	unsignedLong, unsignedInt                  uint64
+//	short, byte                                int16
+//	unsignedShort, unsignedByte                uint16
+//	float                                      float32
+//	double, decimal                            float64
+//	dateTime, date, time                       time.Time (UTC if the value has no zone)
+//	base64Binary                               []byte
+//	OPCQuality                                 TQuality
+//	ArrayOf... (incl. ArrayOfAnyType)          []interface{} of the element types
+//
+// For values the server transmits in a substitute type (date/time as dateTime,
+// duration as string), TItem.ValueTypeQualifier names the intended type.
 type TValue struct {
 	Type      string `xml:"type,attr"` // Can be set manually to force a specific type
 	Value     interface{}

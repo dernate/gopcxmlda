@@ -28,7 +28,15 @@ func TestValueDecodesEveryScalarType(t *testing.T) {
 	}{
 		{"xsd:string", "Hello &amp; &lt;World&gt;", "Hello & <World>"},
 		{"xsd:string", "", ""},
-		{"xsd:base64Binary", "AQID", "AQID"},
+		{"xsd:base64Binary", "AQID", []byte{1, 2, 3}},
+		{"xsd:base64Binary", "AQ\n ID", []byte{1, 2, 3}}, // whitespace is allowed inside
+		{"xsd:base64Binary", "", []byte{}},
+		{"xsd:duration", "P1Y2M3DT4H5M6.5S", "P1Y2M3DT4H5M6.5S"},
+		{"xsd:duration", " -PT0.5S ", "-PT0.5S"},
+		{"xsd:date", "2026-09-25", time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)},
+		{"xsd:date", "2026-09-25+02:00", time.Date(2026, 9, 24, 22, 0, 0, 0, time.UTC)},
+		{"xsd:time", "15:38:06.5", time.Date(0, 1, 1, 15, 38, 6, 500000000, time.UTC)},
+		{"xsd:time", "15:38:06Z", time.Date(0, 1, 1, 15, 38, 6, 0, time.UTC)},
 		{"xsd:QName", "xsd:unsignedInt", "xsd:unsignedInt"},
 		{"xsd:boolean", "true", true},
 		{"xsd:boolean", "0", false},
@@ -151,6 +159,9 @@ func TestValueDecodeErrors(t *testing.T) {
 		"int out of range":        `<Value ` + valueNamespaces + ` xsi:type="xsd:short">40000</Value>`,
 		"invalid boolean":         `<Value ` + valueNamespaces + ` xsi:type="xsd:boolean">yes</Value>`,
 		"invalid dateTime":        `<Value ` + valueNamespaces + ` xsi:type="xsd:dateTime">yesterday</Value>`,
+		"invalid date":            `<Value ` + valueNamespaces + ` xsi:type="xsd:date">25.09.2026</Value>`,
+		"invalid time":            `<Value ` + valueNamespaces + ` xsi:type="xsd:time">3pm</Value>`,
+		"invalid base64Binary":    `<Value ` + valueNamespaces + ` xsi:type="xsd:base64Binary">not*base64</Value>`,
 		"invalid array element":   `<Value ` + valueNamespaces + ` xsi:type="ns1:ArrayOfInt"><ns1:int>1</ns1:int><ns1:int>x</ns1:int></Value>`,
 		"truncated array element": `<Value ` + valueNamespaces + ` xsi:type="ns1:ArrayOfInt"><ns1:int>1</ns1:int>`,
 	}
@@ -214,8 +225,7 @@ func TestWriteValueRoundTrip(t *testing.T) {
 		{[]uint64{1}, []interface{}{uint64(1)}},
 		{[]int{1, 2, 3}, []interface{}{1, 2, 3}},
 		{[]uint{1}, []interface{}{uint(1)}},
-		// base64Binary is decoded as its base64 text, not back into a []byte.
-		{[]byte{1, 2, 3}, "AQID"},
+		{[]byte{1, 2, 3}, []byte{1, 2, 3}},
 	}
 	valueElement := regexp.MustCompile(`<ns1:Value .*?</ns1:Value>`)
 	for _, tc := range cases {
@@ -401,5 +411,30 @@ func TestDateTimeWithoutOffsetIsUTC(t *testing.T) {
 	badDoc := `<Envelope><Body><ReadResponse><RItemList><Items Timestamp="yesterday"/></RItemList></ReadResponse></Body></Envelope>`
 	if err := xml.Unmarshal([]byte(badDoc), &bad); err == nil {
 		t.Error("expected an error for an invalid Timestamp attribute")
+	}
+}
+
+// TestValueTypeQualifierIsExposed covers the transmission the specification
+// recommends for types .NET couldn't handle: a duration sent as string (and a date as
+// dateTime), with ValueTypeQualifier naming the intended type.
+func TestValueTypeQualifierIsExposed(t *testing.T) {
+	doc := soapEnvelope(`<ReadResponse xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><RItemList>` +
+		`<Items ItemName="Runtime" ValueTypeQualifier="xsd:duration"><Value xsi:type="xsd:string">P1DT2H</Value></Items>` +
+		`<Items ItemName="Commissioned" ValueTypeQualifier="xsd:date"><Value xsi:type="xsd:dateTime">2026-09-25T00:00:00Z</Value></Items>` +
+		`<Items ItemName="Power"><Value xsi:type="xsd:int">74</Value></Items>` +
+		`</RItemList></ReadResponse>`)
+	var read TRead
+	if err := xml.Unmarshal([]byte(doc), &read); err != nil {
+		t.Fatal(err)
+	}
+	items := read.Response.ItemList.Items
+	if items[0].ValueTypeQualifier != "xsd:duration" || items[0].Value.Value != "P1DT2H" {
+		t.Errorf("unexpected duration item: %+v", items[0])
+	}
+	if items[1].ValueTypeQualifier != "xsd:date" || !items[1].Value.Value.(time.Time).Equal(time.Date(2026, 9, 25, 0, 0, 0, 0, time.UTC)) {
+		t.Errorf("unexpected date item: %+v", items[1])
+	}
+	if items[2].ValueTypeQualifier != "" {
+		t.Errorf("expected no qualifier on a plain value, got %q", items[2].ValueTypeQualifier)
 	}
 }

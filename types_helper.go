@@ -1,6 +1,7 @@
 package gopcxmlda
 
 import (
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"reflect"
@@ -59,12 +60,31 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	v.Namespace = prefix
 	v.Type = local
 	switch v.Type {
-	case "string", "base64Binary", "QName":
+	case "string", "QName":
 		var data string
 		if err := d.DecodeElement(&data, &start); err != nil {
 			return err
 		}
 		v.Value = data
+	case "base64Binary":
+		var data string
+		if err := d.DecodeElement(&data, &start); err != nil {
+			return err
+		}
+		decoded, err := decodeBase64Binary(data)
+		if err != nil {
+			return err
+		}
+		v.Value = decoded
+	case "duration":
+		// Kept in its lexical form ("P1DT2H"): time.Duration can't represent years and
+		// months exactly, and a string is what the specification maps duration to
+		// (VT_BSTR) - and how it recommends transmitting it in the first place.
+		var data string
+		if err := d.DecodeElement(&data, &start); err != nil {
+			return err
+		}
+		v.Value = strings.TrimSpace(data)
 	case "boolean":
 		var data bool
 		if err := d.DecodeElement(&data, &start); err != nil {
@@ -77,12 +97,16 @@ func (v *TValue) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 			return err
 		}
 		v.Value = time.Time(data)
-	case "time", "date", "duration":
-		var data time.Time
+	case "date", "time":
+		var data string
 		if err := d.DecodeElement(&data, &start); err != nil {
 			return err
 		}
-		v.Value = data
+		parsed, err := parseXsdDateOrTime(v.Type, data)
+		if err != nil {
+			return err
+		}
+		v.Value = parsed
 	case "int":
 		var data int
 		if err := d.DecodeElement(&data, &start); err != nil {
@@ -327,6 +351,43 @@ func parseXsdDateTime(value string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("gopcxmlda: %q is not a valid xsd:dateTime", value)
 	}
 	return parsed, nil
+}
+
+// parseXsdDateOrTime decodes an xsd:date ("2026-09-25", midnight) or an xsd:time
+// ("15:38:06.5", on January 1st of year 0) into a time.Time, the way the specification
+// maps both to VT_DATE. The zone designator is optional; without one, UTC applies (as
+// for xsd:dateTime).
+func parseXsdDateOrTime(typ, value string) (time.Time, error) {
+	layout := "2006-01-02"
+	if typ == "time" {
+		layout = "15:04:05.999999999"
+	}
+	value = strings.TrimSpace(value)
+	if parsed, err := time.Parse(layout+"Z07:00", value); err == nil {
+		return parsed, nil
+	}
+	parsed, err := time.Parse(layout, value)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("gopcxmlda: %q is not a valid xsd:%s", value, typ)
+	}
+	return parsed, nil
+}
+
+// decodeBase64Binary decodes an xsd:base64Binary. XML Schema allows whitespace (e.g.
+// line breaks in long values) inside the encoding, so it is removed first.
+func decodeBase64Binary(value string) ([]byte, error) {
+	compact := strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '\t', '\n', '\r':
+			return -1
+		}
+		return r
+	}, value)
+	decoded, err := base64.StdEncoding.DecodeString(compact)
+	if err != nil {
+		return nil, fmt.Errorf("gopcxmlda: invalid xsd:base64Binary value: %w", err)
+	}
+	return decoded, nil
 }
 
 // UnmarshalXML decodes a TItem, reading its Timestamp attribute as an xsd:dateTime
