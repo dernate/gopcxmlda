@@ -489,3 +489,23 @@ func isEqualTime(a, b interface{}) bool {
 	tb, okB := b.(time.Time)
 	return okA && okB && ta.Equal(tb)
 }
+
+// TestArrayElementWritesBackAsScalar pins down what TestLiveWrite's OPC_WRITE_SCALAR
+// mode sends: the first element of a read ArrayOfUnsignedInt, typed as the scalar
+// element type with the XML Schema prefix.
+func TestArrayElementWritesBackAsScalar(t *testing.T) {
+	read, err := decodeValue(t, `<Value `+valueNamespaces+` xsi:type="ns1:ArrayOfUnsignedInt"><ns1:unsignedInt>0</ns1:unsignedInt><ns1:unsignedInt>0</ns1:unsignedInt></Value>`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	element := read.Value.([]interface{})[0]
+	crh, handles := "crh1", []string{"h0"}
+	payload, err := buildWritePayload(testServer(), "ns1",
+		[]TItem{{ItemName: "Item1", Value: TValue{Type: "unsignedInt", Value: element}}}, &crh, &handles, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload, `<ns1:Value xsi:type="xsd:unsignedInt">0</ns1:Value>`) {
+		t.Fatalf("expected a scalar xsd:unsignedInt value, got: %s", payload)
+	}
+}

@@ -26,6 +26,10 @@
 //	OPC_WRITE_EXPECT_REJECT  "1": the item is read-only and the server must reject the
 //	                         write (a negative test for servers without a writable item
 //	                         that is safe to use)
+//	OPC_WRITE_SCALAR         "1": the item holds an array; write its first element back
+//	                         as a scalar of the element type (e.g. xsd:unsignedInt), to
+//	                         exercise scalar Writes on a server whose writable items are
+//	                         all arrays
 package gopcxmlda
 
 import (
@@ -286,7 +290,18 @@ func TestLiveWrite(t *testing.T) {
 
 	// Writing the value back with its Type set sends it in the item's own type (e.g.
 	// ArrayOfUnsignedInt), not in a type inferred from the Go value.
-	items := []TItem{{ItemName: itemName, Value: TValue{Type: before.Type, Value: before.Value}}}
+	value := TValue{Type: before.Type, Value: before.Value}
+	if os.Getenv("OPC_WRITE_SCALAR") == "1" {
+		elements, ok := before.Value.([]interface{})
+		if !ok || len(elements) == 0 || !strings.HasPrefix(before.Type, "ArrayOf") {
+			t.Fatalf("OPC_WRITE_SCALAR needs an array item with at least one element, %s is %s %v",
+				itemName, before.Type, before.Value)
+		}
+		elementType := strings.TrimPrefix(before.Type, "ArrayOf") // "UnsignedInt"
+		value = TValue{Type: strings.ToLower(elementType[:1]) + elementType[1:], Value: elements[0]}
+	}
+	t.Logf("writing %s %v to %s", value.Type, value.Value, itemName)
+	items := []TItem{{ItemName: itemName, Value: value}}
 	options := map[string]interface{}{
 		"ReturnErrorText": true,
 		"ReturnItemName":  true,
