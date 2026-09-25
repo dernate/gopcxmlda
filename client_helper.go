@@ -147,8 +147,12 @@ func doRequest[T soapResponse](ctx context.Context, s *Server, payload string, a
 	if f := result.fault(); f.FaultCode != "" {
 		errReturn = errors.Join(errReturn, &SoapFaultError{FaultCode: f.FaultCode, FaultString: f.FaultString, Detail: f.Detail})
 	}
-	if e := result.responseErrors(); e.Id != "" {
-		errReturn = errors.Join(errReturn, &OpcResponseError{Id: e.Id, Text: e.Text, Type: e.Type})
+	if e := result.responseErrors(); e.hasID() {
+		errReturn = errors.Join(errReturn, &OpcResponseError{
+			Id: e.Id, Text: e.Text, Type: e.Type,
+			Errors: e.Entries,
+			Items:  result.itemResults(),
+		})
 	}
 
 	if errReturn != nil {

@@ -280,10 +280,17 @@ type TProperties struct {
 	Value       TValue `xml:"Value"`
 }
 
+// OpcErrors holds the <Errors> elements of a response. Per the specification these
+// are the verbose texts for the unique ResultIDs that occur in the response's items -
+// one element per ResultID, each with its own ID and text. See also ItemResults on the
+// response types, which pairs each item with its text.
 type OpcErrors struct {
-	Id   string   `xml:"ID,attr"`
-	Type string   `xml:"type,attr"`
-	Text []string `xml:"Text"`
+	Id   string   `xml:"ID,attr"`   // ID of the first <Errors> element
+	Type string   `xml:"type,attr"` // xsi:type of the first <Errors> element
+	Text []string `xml:"Text"`      // texts of all <Errors> elements, in order
+	// Entries holds every <Errors> element separately, keeping each ID with its own
+	// text - which Id/Text alone can't do once there is more than one.
+	Entries []OpcError `xml:"-"`
 }
 
 type TServerTime struct {
@@ -304,6 +311,7 @@ type TPropertyOptions struct {
 type soapResponse interface {
 	fault() TSoapError
 	responseErrors() OpcErrors
+	itemResults() []ItemResult
 }
 
 func (b TBodyBase) fault() TSoapError { return b.Fault }
