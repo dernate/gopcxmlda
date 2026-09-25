@@ -179,6 +179,10 @@ type TBrowseElement struct {
 	Name        string `xml:"Name,attr"`
 	ItemName    string `xml:"ItemName,attr"`
 	ItemPath    string `xml:"ItemPath,attr"`
+	// Properties holds the element's item properties when the Browse request asked for
+	// them (TBrowseOptions.ReturnAllProperties, with values if ReturnPropertyValues is
+	// set); it is empty otherwise.
+	Properties []TProperties `xml:"Properties"`
 }
 
 type TWrite struct {

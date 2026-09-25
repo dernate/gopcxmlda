@@ -180,13 +180,28 @@ func TestResponseBrowseGSOAP(t *testing.T) {
 	if r.MoreElements != "true" || r.ContinuationPoint != "191577240" {
 		t.Errorf("unexpected paging attributes: MoreElements=%q ContinuationPoint=%q", r.MoreElements, r.ContinuationPoint)
 	}
-	want := []TBrowseElement{
-		{HasChildren: false, IsItem: true, Name: "SerialNo", ItemName: "Plant/SerialNo"},
-		{HasChildren: true, IsItem: false, Name: "Log", ItemName: "Plant/Log"},
+	if len(r.Elements) != 2 {
+		t.Fatalf("expected 2 elements, got %d", len(r.Elements))
 	}
-	if !reflect.DeepEqual(r.Elements, want) {
-		t.Errorf("expected elements %+v, got %+v", want, r.Elements)
+	item, folder := r.Elements[0], r.Elements[1]
+	if item.HasChildren || !item.IsItem || item.Name != "SerialNo" || item.ItemName != "Plant/SerialNo" {
+		t.Errorf("unexpected item element: %+v", item)
 	}
+	if !folder.HasChildren || folder.IsItem || folder.Name != "Log" || len(folder.Properties) != 0 {
+		t.Errorf("unexpected folder element: %+v", folder)
+	}
+
+	// The properties requested via ReturnAllProperties/ReturnPropertyValues.
+	if len(item.Properties) != 2 {
+		t.Fatalf("expected 2 properties on the item element, got %+v", item.Properties)
+	}
+	dataType, value := item.Properties[0], item.Properties[1]
+	if dataType.Name != "ns1:dataType" || dataType.Description != "Item canonical data type" ||
+		dataType.ItemName != "SerialNo" || dataType.ItemPath != "Plant/" {
+		t.Errorf("unexpected dataType property: %+v", dataType)
+	}
+	assertValue(t, "dataType", dataType.Value, "QName", "xsd:unsignedInt")
+	assertValue(t, "value", value.Value, "unsignedInt", uint64(123456))
 }
 
 // TestResponseBrowseAxisFault covers a SOAP fault delivered with HTTP 500: both the
