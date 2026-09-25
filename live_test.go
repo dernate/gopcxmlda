@@ -17,14 +17,23 @@
 //	OPC_PROPERTY_ITEMS   items for TestLiveGetProperties
 //	OPC_SUBSCRIBE_ITEMS  items for TestLiveSubscribe (sampled every 1000 ms)
 //
-// Unset variables fall back to the defaults below. The item TestLiveWrite writes to is
-// deliberately not configurable.
+// Unset variables fall back to the defaults below.
+//
+// TestLiveWrite never changes a value: it reads the item's current value and writes
+// exactly that value back, in the item's own type, then reads again and compares.
+//
+//	OPC_WRITE_ITEM           item TestLiveWrite writes to
+//	OPC_WRITE_EXPECT_REJECT  "1": the item is read-only and the server must reject the
+//	                         write (a negative test for servers without a writable item
+//	                         that is safe to use)
 package gopcxmlda
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,8 +42,8 @@ import (
 )
 
 // liveWriteOptIn is the environment variable that must be set to "1" for TestLiveWrite
-// to run. TestLiveWrite writes to a real control item on the live server, so it must
-// never run as a side effect of running the live suite.
+// to run. TestLiveWrite writes to a real item on the live server - even if only its
+// current value - so it must never run as a side effect of running the live suite.
 const liveWriteOptIn = "GOPCXMLDA_LIVE_WRITE"
 
 // liveServer returns a Server for OPC_URL, loading .env if present. It skips the test
@@ -236,18 +245,48 @@ func TestLiveSubscribe(t *testing.T) {
 	t.Log("Subscription started, refreshed and canceled successfully")
 }
 
-// TestLiveWrite writes [0,0,0] to a real control item. It is skipped unless
+// TestLiveWrite writes an item's current value back to it and checks the value is
+// unchanged afterwards, so a run never alters the plant. It is skipped unless
 // GOPCXMLDA_LIVE_WRITE=1 is set in the process environment.
+//
+// With OPC_WRITE_EXPECT_REJECT=1 the item is expected to be read-only: the server must
+// reject the write for the item (e.g. E_READONLY) - which still exercises the whole
+// Write request/response path on servers that offer no safe writable item.
 func TestLiveWrite(t *testing.T) {
 	// Checked before liveServer() loads .env on purpose: only the real process
 	// environment can enable the write, so it can't be switched on permanently via .env.
 	if os.Getenv(liveWriteOptIn) != "1" {
-		t.Skipf("writes to a live control item; set %s=1 to run it", liveWriteOptIn)
+		t.Skipf("writes to a live item; set %s=1 to run it", liveWriteOptIn)
 	}
 	s := liveServer(t, 10*time.Second)
-	items := []TItem{
-		{ItemName: "Loc/Wec/Plant1/Ctrl/SessionRequest", Value: TValue{Value: []int{0, 0, 0}}},
+	ctx := context.Background()
+	itemName := os.Getenv("OPC_WRITE_ITEM")
+	if itemName == "" {
+		itemName = "Loc/Wec/Plant1/Ctrl/SessionRequest"
 	}
+	expectReject := os.Getenv("OPC_WRITE_EXPECT_REJECT") == "1"
+
+	readValue := func(when string) TValue {
+		t.Helper()
+		var crh string
+		var cih []string
+		r, err := s.Read(ctx, []TItem{{ItemName: itemName}}, &crh, &cih, "", map[string]interface{}{"ReturnErrorText": true})
+		if err != nil {
+			t.Fatalf("reading %s %s: %v", itemName, when, err)
+		}
+		assertNoFailedItems(t, r.ItemResults())
+		if len(r.Response.ItemList.Items) != 1 || r.Response.ItemList.Items[0].Value.Value == nil {
+			t.Fatalf("reading %s %s: the server returned no value, so there is nothing to write back", itemName, when)
+		}
+		return r.Response.ItemList.Items[0].Value
+	}
+
+	before := readValue("before the write")
+	t.Logf("current value of %s: %s %v", itemName, before.Type, before.Value)
+
+	// Writing the value back with its Type set sends it in the item's own type (e.g.
+	// ArrayOfUnsignedInt), not in a type inferred from the Go value.
+	items := []TItem{{ItemName: itemName, Value: TValue{Type: before.Type, Value: before.Value}}}
 	options := map[string]interface{}{
 		"ReturnErrorText": true,
 		"ReturnItemName":  true,
@@ -255,9 +294,33 @@ func TestLiveWrite(t *testing.T) {
 	}
 	var ClientRequestHandle string
 	var ClientItemHandles []string
-	w, err := s.Write(context.Background(), items, &ClientRequestHandle, &ClientItemHandles, "", options)
-	if err != nil {
-		t.Fatal(err)
+	w, err := s.Write(ctx, items, &ClientRequestHandle, &ClientItemHandles, "", options)
+	var fault *SoapFaultError
+	if errors.As(err, &fault) {
+		t.Fatalf("the server rejected the whole Write request (not just the item): %v", err)
 	}
-	t.Logf("Write: %+v", w)
+
+	if expectReject {
+		rejected := false
+		for _, r := range w.ItemResults() {
+			if r.Failed() {
+				rejected = true
+				t.Logf("write rejected as expected: %s %s", r.ResultID, r.Text)
+			}
+		}
+		if !rejected {
+			t.Errorf("expected the server to reject the write to the read-only item %s, it accepted it (err: %v)", itemName, err)
+		}
+	} else {
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertNoFailedItems(t, w.ItemResults())
+		t.Logf("Write: %+v", w)
+	}
+
+	after := readValue("after the write")
+	if !reflect.DeepEqual(after.Value, before.Value) {
+		t.Errorf("value of %s changed: before %v, after %v", itemName, before.Value, after.Value)
+	}
 }

@@ -191,14 +191,18 @@ The items the live tests use differ per server and can be set in the environment
 | `OPC_BROWSE_ITEM` | `TestLiveBrowse` (ItemName of the starting element) |
 | `OPC_PROPERTY_ITEMS` | `TestLiveGetProperties` |
 | `OPC_SUBSCRIBE_ITEMS` | `TestLiveSubscribe` |
+| `OPC_WRITE_ITEM` | `TestLiveWrite` |
+| `OPC_WRITE_EXPECT_REJECT` | `TestLiveWrite`: `1` if `OPC_WRITE_ITEM` is read-only and the server must reject the write |
 
 A live test fails if the server rejects any of its items, so choose items that exist
 on the server under test.
 
 The live tests only compile with the `live` build tag, so a plain `go test ./...`
 never contacts a server. They only read, with one exception: `TestLiveWrite` writes to a
-real control item and is skipped unless `GOPCXMLDA_LIVE_WRITE=1` is set in the process
-environment. Setting it in `.env` has no effect.
+real item and is skipped unless `GOPCXMLDA_LIVE_WRITE=1` is set in the process
+environment. Setting it in `.env` has no effect. Even then it never changes a value: it
+reads the item's current value, writes exactly that value back in the item's own type,
+and reads again to check that nothing changed.
 
 `go test -fuzz=FuzzValueUnmarshalXML` searches for inputs that make value decoding
 panic, beyond the seed corpus that runs with every `go test`.

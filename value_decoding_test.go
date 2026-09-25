@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"reflect"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 )
@@ -437,4 +438,54 @@ func TestValueTypeQualifierIsExposed(t *testing.T) {
 	if items[2].ValueTypeQualifier != "" {
 		t.Errorf("expected no qualifier on a plain value, got %q", items[2].ValueTypeQualifier)
 	}
+}
+
+// TestDecodedValueWritesBackInItsOwnType pins down what TestLiveWrite relies on: a
+// value as returned by Read, written back unchanged (Type included), is sent in the
+// item's own type and decodes to the same value again.
+func TestDecodedValueWritesBackInItsOwnType(t *testing.T) {
+	cases := []struct {
+		doc, wantType string
+	}{
+		{`<Value ` + valueNamespaces + ` xsi:type="ns1:ArrayOfUnsignedInt"><ns1:unsignedInt>0</ns1:unsignedInt><ns1:unsignedInt>7</ns1:unsignedInt></Value>`,
+			`xsi:type="ns1:ArrayOfUnsignedInt"><ns1:unsignedInt>0</ns1:unsignedInt><ns1:unsignedInt>7</ns1:unsignedInt>`},
+		{`<Value ` + valueNamespaces + ` xsi:type="ns1:ArrayOfUnsignedShort"><ns1:unsignedShort>65535</ns1:unsignedShort></Value>`,
+			`xsi:type="ns1:ArrayOfUnsignedShort"><ns1:unsignedShort>65535</ns1:unsignedShort>`},
+		{`<Value ` + valueNamespaces + ` xsi:type="xsd:string">Run</Value>`, `xsi:type="xsd:string">Run<`},
+		{`<Value ` + valueNamespaces + ` xsi:type="xsd:unsignedInt">4294967295</Value>`, `xsi:type="xsd:unsignedInt">4294967295<`},
+		{`<Value ` + valueNamespaces + ` xsi:type="xsd:byte">-5</Value>`, `xsi:type="xsd:byte">-5<`},
+		{`<Value ` + valueNamespaces + ` xsi:type="xsd:float">10.284486</Value>`, `xsi:type="xsd:float">10.284486<`},
+		{`<Value ` + valueNamespaces + ` xsi:type="xsd:dateTime">2026-09-25T16:13:53.14Z</Value>`, `xsi:type="xsd:dateTime">2026-09-25T16:13:53.14Z<`},
+	}
+	valueElement := regexp.MustCompile(`<ns1:Value .*?</ns1:Value>`)
+	for _, tc := range cases {
+		read, err := decodeValue(t, tc.doc)
+		if err != nil {
+			t.Fatal(err)
+		}
+		crh, handles := "crh1", []string{"h0"}
+		payload, err := buildWritePayload(testServer(), "ns1",
+			[]TItem{{ItemName: "Item1", Value: TValue{Type: read.Type, Value: read.Value}}}, &crh, &handles, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", read.Type, err)
+		}
+		if !strings.Contains(payload, tc.wantType) {
+			t.Errorf("%s: expected %s in: %s", read.Type, tc.wantType, payload)
+			continue
+		}
+		element := valueElement.FindString(payload)
+		again, err := decodeValue(t, `<ns1:Value `+valueNamespaces+element[len(`<ns1:Value`):])
+		if err != nil {
+			t.Fatalf("%s: decoding the written value: %v", read.Type, err)
+		}
+		if !reflect.DeepEqual(again.Value, read.Value) && !isEqualTime(again.Value, read.Value) {
+			t.Errorf("%s: expected %#v after the round trip, got %#v", read.Type, read.Value, again.Value)
+		}
+	}
+}
+
+func isEqualTime(a, b interface{}) bool {
+	ta, okA := a.(time.Time)
+	tb, okB := b.(time.Time)
+	return okA && okB && ta.Equal(tb)
 }
