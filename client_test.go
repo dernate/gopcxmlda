@@ -96,7 +96,17 @@ func TestBrowse(t *testing.T) {
 	}
 }
 
+// liveWriteOptIn is the environment variable that must be set to "1" for TestWrite to
+// run. TestWrite writes to a real control item on the live server from .env, so a plain
+// `go test ./...` must never execute it by accident.
+const liveWriteOptIn = "GOPCXMLDA_LIVE_WRITE"
+
 func TestWrite(t *testing.T) {
+	// Checked before godotenv.Load() on purpose: only the real process environment can
+	// enable the write, so it can't be switched on permanently via .env.
+	if os.Getenv(liveWriteOptIn) != "1" {
+		t.Skipf("writes to a live control item; set %s=1 to run it", liveWriteOptIn)
+	}
 	err := godotenv.Load()
 	if err != nil {
 		t.Fatal("Error loading .env file")
