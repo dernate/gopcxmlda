@@ -256,3 +256,25 @@ func TestBuildWritePayloadLexicalForms(t *testing.T) {
 		}
 	}
 }
+
+// TestBuildBrowsePayloadOmitsEmptyBrowseFilter pins down that an unset BrowseFilter is
+// left out rather than sent as BrowseFilter="": the attribute is an enumeration
+// (all/branch/item, default all) and a Java/Axis server rejected every Browse with
+// HTTP 500 over the empty value.
+func TestBuildBrowsePayloadOmitsEmptyBrowseFilter(t *testing.T) {
+	crh := "crh1"
+	payload, err := buildBrowsePayload(testServer(), &crh, "", "ns1", TBrowseOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(payload, "BrowseFilter") {
+		t.Fatalf("expected no BrowseFilter attribute when unset, got: %s", payload)
+	}
+	payload, err = buildBrowsePayload(testServer(), &crh, "", "ns1", TBrowseOptions{BrowseFilter: "item"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(payload, `BrowseFilter="item"`) {
+		t.Fatalf("expected BrowseFilter=\"item\", got: %s", payload)
+	}
+}

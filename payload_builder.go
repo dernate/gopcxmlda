@@ -172,14 +172,17 @@ func buildReadPayload(s *Server, ClientRequestHandle *string, ClientItemHandles 
 }
 
 type xmlBrowseRequest struct {
-	XMLName              xml.Name
-	LocaleID             string `xml:"LocaleID,attr"`
-	ItemPath             string `xml:"ItemPath,attr"`
-	ClientRequestHandle  string `xml:"ClientRequestHandle,attr"`
-	ItemName             string `xml:"ItemName,attr"`
-	ContinuationPoint    string `xml:"ContinuationPoint,attr"`
-	MaxElementsReturned  int    `xml:"MaxElementsReturned,attr"`
-	BrowseFilter         string `xml:"BrowseFilter,attr"`
+	XMLName             xml.Name
+	LocaleID            string `xml:"LocaleID,attr"`
+	ItemPath            string `xml:"ItemPath,attr"`
+	ClientRequestHandle string `xml:"ClientRequestHandle,attr"`
+	ItemName            string `xml:"ItemName,attr"`
+	ContinuationPoint   string `xml:"ContinuationPoint,attr"`
+	MaxElementsReturned int    `xml:"MaxElementsReturned,attr"`
+	// BrowseFilter is an enumeration (all, branch, item) with default "all"; an empty
+	// value is not valid and makes strict servers reject the whole request, so it is
+	// omitted when unset and the server applies the default.
+	BrowseFilter         string `xml:"BrowseFilter,attr,omitempty"`
 	ElementNameFilter    string `xml:"ElementNameFilter,attr"`
 	VendorFilter         string `xml:"VendorFilter,attr"`
 	ReturnAllProperties  bool   `xml:"ReturnAllProperties,attr"`
